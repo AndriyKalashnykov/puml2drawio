@@ -1,0 +1,49 @@
+name: 'puml2drawio'
+description: 'Convert PlantUML C4 diagrams to draw.io XML (wraps localgod/catalyst).'
+author: 'Andriy Kalashnykov'
+branding:
+  icon: 'git-merge'
+  color: 'blue'
+
+inputs:
+  input:
+    description: 'Input .puml file, directory (recursed), or "-" for stdin'
+    required: true
+  output:
+    description: 'Output file (single input) or directory (batch)'
+    required: false
+  output-ext:
+    description: 'Output file extension used in batch mode'
+    required: false
+    default: '.drawio'
+  layout-direction:
+    description: 'Dagre layout direction: TB | BT | LR | RL'
+    required: false
+  nodesep:
+    description: 'Node separation (px)'
+    required: false
+  edgesep:
+    description: 'Edge separation (px)'
+    required: false
+  ranksep:
+    description: 'Rank separation (px)'
+    required: false
+  marginx:
+    description: 'X margin (px)'
+    required: false
+  marginy:
+    description: 'Y margin (px)'
+    required: false
+  fail-fast:
+    description: 'Stop on first batch conversion error (true | false)'
+    required: false
+    default: 'false'
+  quiet:
+    description: 'Suppress per-file progress output (true | false)'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  entrypoint: '/app/action-entrypoint.sh'

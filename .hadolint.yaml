@@ -1,0 +1,3 @@
+ignored:
+  - DL3008  # Pin apt versions: we use alpine, not apt
+  - DL3018  # Pin apk versions: git version managed by alpine base image

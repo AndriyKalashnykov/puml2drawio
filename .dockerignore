@@ -1,0 +1,14 @@
+node_modules
+coverage
+vendor
+.git
+.nvmrc
+.github
+.mise.toml
+*.log
+.DS_Store
+.idea
+.vscode
+Makefile
+README.md
+CLAUDE.md

@@ -1,0 +1,58 @@
+name: Action consumer test
+
+# Nightly self-consumer test: exercises the action via `uses: ./` against a
+# synthetic PlantUML input, asserts the converted drawio output exists and
+# contains mxGraphModel. Runs nightly + manual dispatch; not on ci-pass path
+# because it rebuilds the Docker image from source (~30-60s) on every run.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: action-consumer-test-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  uses-action:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Create test PlantUML input
+        run: |
+          mkdir -p test-diagrams/nested
+          cat > test-diagrams/context.puml <<'EOF'
+          @startuml
+          actor User
+          rectangle App
+          User --> App : uses
+          @enduml
+          EOF
+          cat > test-diagrams/nested/sequence.puml <<'EOF'
+          @startuml
+          Alice -> Bob : hello
+          Bob --> Alice : hi
+          @enduml
+          EOF
+
+      - name: Run action against test-diagrams/
+        uses: ./
+        with:
+          input: test-diagrams
+          output: test-output
+          quiet: 'true'
+
+      - name: Assert converted output
+        run: |
+          set -euo pipefail
+          for f in test-output/context.drawio test-output/nested/sequence.drawio; do
+            test -s "$f" || { echo "FAIL: $f missing or empty"; exit 1; }
+            grep -q 'mxGraphModel' "$f" || { echo "FAIL: $f missing mxGraphModel"; exit 1; }
+            echo "PASS: $f"
+          done

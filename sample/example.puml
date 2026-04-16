@@ -1,0 +1,10 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+Person(user, "User", "A user of the system")
+System(api, "API", "Handles incoming requests")
+Container(db, "Database", "PostgreSQL", "Stores application data")
+
+Rel(user, api, "Uses", "HTTPS")
+Rel(api, db, "Reads/writes", "SQL")
+@enduml
