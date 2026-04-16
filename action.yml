@@ -45,5 +45,9 @@ inputs:
 
 runs:
   using: 'docker'
-  image: 'Dockerfile'
+  # Pin to the published major-version tag — auto-rolls forward to the latest
+  # 1.x.y release (Renovate tracks new major bumps via the docker manager).
+  # Consumers pull a ~12 MB image instead of building from source on first use
+  # (~30-60 s saved per consumer per CI run). Cosign-verifiable supply chain.
+  image: 'docker://ghcr.io/andriykalashnykov/puml2drawio:1'
   entrypoint: '/app/action-entrypoint.sh'

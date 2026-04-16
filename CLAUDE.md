@@ -132,7 +132,6 @@ Deferred work from initial scaffold (2026-04-16). Keep this list current — res
 - [ ] **No `pnpm-lock.yaml`** yet. First `make deps` / `pnpm install` generates it. Commit so `ci.yml`'s `cache: 'pnpm'` works reliably and `Dockerfile` can use `--frozen-lockfile`.
 - [ ] **`make vulncheck` is informational only** (pnpm 10.33 still queries npm's retired `/-/npm/v1/security/audits` endpoint and gets 410). The target swallows the failure with a note; `make trivy-fs` remains the actual CVE gate in `static-check`. Remove the `|| echo ...` swallow once pnpm ships bulk-advisory-endpoint support ([pnpm issue tracker](https://github.com/pnpm/pnpm/issues)).
 - [ ] **Upstream catalyst PRs** — two PRs filed (2026-04-16): [#552 add typescript to devDependencies](https://github.com/localgod/catalyst/pull/552) and [#553 explicit rootDir in tsconfig](https://github.com/localgod/catalyst/pull/553). Once both merge upstream, remove the transient `typescript@~5.7` install in `scripts/fetch-catalyst.sh` and `Dockerfile` (the defense-in-depth is still useful for resilience but the primary path becomes `npm ci && npm run build`).
-- [ ] **`action.yml` uses `image: 'Dockerfile'`** — every consumer's first CI run rebuilds the image (~30–60 s). After the first release tag publishes to GHCR, switch to `image: 'docker://ghcr.io/andriykalashnykov/puml2drawio:v1'` for instant start.
 
 ### Nice-to-have
 
