@@ -3,7 +3,11 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    # Only full-semver tags (vN.N.N) trigger the publish pipeline.
+    # Floating major/minor tags (v1, v1.0) are pushed manually after a
+    # release to retarget consumers' `uses: ...@v1` and MUST NOT
+    # re-trigger publish. See `make release-floating-tags`.
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
     paths-ignore:
       - '*.md'
       - '!CLAUDE.md'

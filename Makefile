@@ -298,10 +298,26 @@ release:
 	@bash -c 'read -p "New tag (current: $(CURRENTTAG)): " newtag && \
 		echo "$$newtag" | grep -qE "^v[0-9]+\.[0-9]+\.[0-9]+$$" || { echo "Error: tag must match vN.N.N"; exit 1; } && \
 		read -p "Create and push $$newtag? [y/N] " ans && [ "$${ans:-N}" = y ] && \
-		git tag $$newtag && git push origin $$newtag && echo "Done."'
+		git tag -a $$newtag -m "$$newtag" && git push origin $$newtag && \
+		echo "" && \
+		echo "Tag $$newtag pushed. After the publish CI is green, retarget the floating major/minor tags:" && \
+		echo "  make release-floating-tags VERSION=$$newtag"'
+
+#release-floating-tags: @ Force-update floating vX and vX.Y tags after a vX.Y.Z release (VERSION=vX.Y.Z)
+release-floating-tags:
+	@test -n "$(VERSION)" || { echo "Error: pass VERSION=vX.Y.Z (e.g., make release-floating-tags VERSION=v1.0.1)"; exit 1; }
+	@echo "$(VERSION)" | grep -qE "^v[0-9]+\.[0-9]+\.[0-9]+$$" || { echo "Error: VERSION must match vN.N.N"; exit 1; }
+	@git rev-parse --verify "$(VERSION)" >/dev/null 2>&1 || { echo "Error: tag $(VERSION) does not exist locally; run 'git fetch --tags' first"; exit 1; }
+	@major=$$(echo "$(VERSION)" | cut -d. -f1); \
+		minor=$$(echo "$(VERSION)" | cut -d. -f1-2); \
+		echo "Retargeting $$major and $$minor → $(VERSION)"; \
+		git tag -fa "$$major" "$(VERSION)" -m "$$major (latest $$major.x.y)" && \
+		git tag -fa "$$minor" "$(VERSION)" -m "$$minor (latest $$minor.x)" && \
+		git push --force origin "$$major" "$$minor" && \
+		echo "Floating tags $$major and $$minor now point at $(VERSION)."
 
 .PHONY: help deps deps-check deps-hadolint deps-shellcheck deps-act deps-trivy fetch-catalyst clean \
 	build test test-coverage integration-test action-test \
 	lint lint-docker lint-shell vulncheck trivy-fs mermaid-lint static-check \
 	image-build image-run image-sample image-push image-stop e2e \
-	ci ci-run renovate-validate release
+	ci ci-run renovate-validate release release-floating-tags

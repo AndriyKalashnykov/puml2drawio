@@ -137,7 +137,16 @@ The `-` positional tells the CLI to read from stdin. Output goes to stdout by de
     path: build/drawio/
 ```
 
-Behind the scenes, the Action invokes the same Docker image — so everything described above (folder mode, `-o` required, `--fail-fast`, `--output-ext`) applies through `with:` inputs (`fail-fast: 'true'`, `output-ext: '.xml'`, etc.).
+Behind the scenes, the Action runs the published GHCR image (`docker://ghcr.io/andriykalashnykov/puml2drawio:1`) — no per-consumer build, ~12 MB pull. Everything described above (folder mode, `-o` required, `--fail-fast`, `--output-ext`) applies through `with:` inputs (`fail-fast: 'true'`, `output-ext: '.xml'`, etc.).
+
+**Pinning options for `uses:`** — pick one based on how strictly you want to gate updates:
+
+| Pin | Rolls forward on | Use when |
+|-----|------------------|----------|
+| `@v1` | every `v1.x.y` release (latest patch+minor in v1) | most consumers — gets bug fixes automatically, breaks only on a v2 major bump that you'd review explicitly |
+| `@v1.0` | every `v1.0.x` patch | stricter consumers — patches only, no minor-version drift |
+| `@v1.0.1` | nothing (immutable) | reproducible builds, audited supply chain |
+| `@<commit-sha>` | nothing (immutable, doesn't redirect) | strictest pin; couple with Renovate's `helpers:pinGitHubActionDigests` to auto-PR new SHAs |
 
 ## Prerequisites
 
