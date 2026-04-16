@@ -17,8 +17,9 @@ WORKDIR /build/catalyst
 # --no-save keeps package-lock.json clean so `npm prune` afterwards trims it.
 RUN npm ci --silent \
   && (test -x node_modules/.bin/tsc || npm install --no-save --silent 'typescript@~5.7') \
-  && (npm run build --silent || true) \
-  && test -s dist/catalyst.mjs \
+  && (npm run build --silent > /tmp/tsc.log 2>&1 || true) \
+  && (test -s dist/catalyst.mjs || (cat /tmp/tsc.log >&2; exit 1)) \
+  && rm -f /tmp/tsc.log \
   && rm -rf node_modules \
   && npm install --omit=dev --ignore-scripts --silent
 

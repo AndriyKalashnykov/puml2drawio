@@ -48,12 +48,18 @@ echo "building catalyst at ${REF}"
   # Upstream catalyst has pre-existing type errors (missing `dagre` namespace,
   # implicit any on node/edge params). TypeScript still emits dist/ by default
   # (noEmitOnError=false), so we accept tsc's non-zero exit and verify the
-  # artefact was produced afterwards.
-  npm run build --silent || true
-  test -s dist/catalyst.mjs || {
+  # artefact was produced afterwards. Capture tsc output so it doesn't reach
+  # the surrounding shell (the GitHub Actions tsc problem matcher would
+  # otherwise turn every `error TSxxxx:` line into a red failure annotation).
+  build_log=$(mktemp)
+  npm run build --silent > "${build_log}" 2>&1 || true
+  if [ ! -s dist/catalyst.mjs ]; then
     echo "error: catalyst build did not produce dist/catalyst.mjs" >&2
+    cat "${build_log}" >&2
+    rm -f "${build_log}"
     exit 1
-  }
+  fi
+  rm -f "${build_log}"
   # `npm prune --omit=dev` leaves residual transitive devDep trees in place
   # (observed: @babel/@vitest/@rolldown/oxlint remain even after prune,
   # shipping 5 HIGH CVEs into the runtime image). Wipe node_modules and
