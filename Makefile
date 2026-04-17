@@ -73,6 +73,10 @@ deps-check:
 	@printf "  %-16s %s\n" "trivy:" "$$(command -v trivy >/dev/null 2>&1 && trivy --version | head -1 || echo 'NOT installed')"
 	@printf "  %-16s %s\n" "CATALYST_REF:" "$(CATALYST_REF)"
 
+#require-docker: @ Fail fast when docker CLI is not on PATH
+require-docker:
+	@command -v docker >/dev/null 2>&1 || { echo "Error: docker required."; exit 1; }
+
 #fetch-catalyst: @ Clone and build localgod/catalyst at pinned CATALYST_REF
 fetch-catalyst:
 	@bash scripts/fetch-catalyst.sh
@@ -138,8 +142,7 @@ trivy-fs: deps
 		.
 
 #mermaid-lint: @ Validate Mermaid diagrams in markdown files
-mermaid-lint:
-	@command -v docker >/dev/null 2>&1 || { echo "ERROR: docker required for mermaid-lint"; exit 1; }
+mermaid-lint: require-docker
 	@set -euo pipefail; \
 	MD_FILES=$$(grep -lF '```mermaid' README.md CLAUDE.md 2>/dev/null || true); \
 	if [ -z "$$MD_FILES" ]; then \
@@ -171,8 +174,7 @@ static-check: lint vulncheck trivy-fs mermaid-lint
 	@echo "Static check passed."
 
 #image-build: @ Build Docker image (pinned CATALYST_REF)
-image-build:
-	@command -v docker >/dev/null 2>&1 || { echo "Error: docker required."; exit 1; }
+image-build: require-docker
 	@docker buildx build --load \
 		--build-arg CATALYST_REF=$(CATALYST_REF) \
 		-t $(DOCKER_IMAGE):$(DOCKER_TAG) \
@@ -263,7 +265,7 @@ release-floating-tags:
 		git push --force origin "$$major" "$$minor" && \
 		echo "Floating tags $$major and $$minor now point at $(VERSION)."
 
-.PHONY: help deps deps-check fetch-catalyst clean \
+.PHONY: help deps deps-check require-docker fetch-catalyst clean \
 	build test test-coverage integration-test action-test \
 	lint lint-docker lint-shell vulncheck trivy-fs mermaid-lint static-check \
 	image-build image-run image-sample image-push image-stop e2e \
