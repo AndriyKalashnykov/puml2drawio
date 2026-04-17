@@ -7,17 +7,6 @@
 
 Dockerized CLI that converts PlantUML C4 diagrams (`.puml`) to draw.io XML (`.drawio`). Designed to drop into CI pipelines that commit PlantUML sources and want draw.io output rendered or committed back downstream. Wraps the [localgod/catalyst](https://github.com/localgod/catalyst) JavaScript library (pinned by commit SHA, tracked by Renovate).
 
-| Component | Technology |
-|-----------|-----------|
-| Language | Node.js 24 (ES modules) |
-| CLI parser | yargs |
-| Conversion engine | [localgod/catalyst](https://github.com/localgod/catalyst) (vendored at pinned SHA) |
-| Container base | `node:24-alpine` (non-root `app` user) |
-| Registry | GitHub Container Registry (GHCR), multi-arch `linux/amd64` + `linux/arm64` |
-| Signing | [cosign](https://docs.sigstore.dev/cosign/overview/) keyless OIDC on tag pushes |
-| Tests | Vitest |
-| Version manager | mise — `.mise.toml` single source of truth; `jdx/mise-action` in CI for tool parity |
-
 ```mermaid
 flowchart LR
   puml[".puml files<br/>(PlantUML C4)"] -->|stdin / file / dir| cli["puml2drawio CLI<br/>(yargs)"]
@@ -32,6 +21,17 @@ flowchart LR
 ```
 
 Data-flow view of a conversion: PlantUML source enters via stdin, a file path, or a directory; the CLI delegates layout + XML emission to the vendored catalyst library; draw.io XML leaves via stdout, a file, or a mirrored output directory. The CLI and catalyst both live inside the published Docker image — consumers bind-mount their workspace at `/work`.
+
+| Component | Technology |
+|-----------|-----------|
+| Language | Node.js 24 (ES modules) |
+| CLI parser | yargs |
+| Conversion engine | [localgod/catalyst](https://github.com/localgod/catalyst) (vendored at pinned SHA) |
+| Container base | `node:24-alpine` (non-root `app` user) |
+| Registry | GitHub Container Registry (GHCR), multi-arch `linux/amd64` + `linux/arm64` |
+| Signing | [cosign](https://docs.sigstore.dev/cosign/overview/) keyless OIDC on tag pushes |
+| Tests | Vitest |
+| Version manager | mise — `.mise.toml` single source of truth; `jdx/mise-action` in CI for tool parity |
 
 ## Quick Start
 
@@ -77,7 +77,7 @@ docker run --rm -v "$PWD:/work" -w /work \
 
 Example tree transformation:
 
-```
+```text
 diagrams/                        build/drawio/
   context.puml                     context.drawio
   sequence.puml          →         sequence.drawio
@@ -228,6 +228,7 @@ Run `make help` to see every target.
 | `make image-sample` | Convert `sample/example.puml` with the built image |
 | `make image-push` | Tag + push image to GHCR (requires `docker login` or `GH_ACCESS_TOKEN`) |
 | `make image-stop` | Stop any running puml2drawio container |
+| `make require-docker` | Fail fast when docker CLI is not on PATH (prerequisite of `image-*` and `mermaid-lint`) |
 | `make clean` | Remove `node_modules/`, `vendor/`, `coverage/`, `build/`, `dist/` |
 
 ### Quality & Testing
@@ -255,6 +256,7 @@ Run `make help` to see every target.
 | `make ci-run` | Execute `.github/workflows/ci.yml` locally via [act](https://github.com/nektos/act) |
 | `make renovate-validate` | Validate `renovate.json` via `npx --yes renovate --platform=local` |
 | `make release` | Interactive semver tag prompt (main-branch only, validates `vN.N.N`, pushes) |
+| `make release-floating-tags VERSION=vX.Y.Z` | Retarget floating `vX` / `vX.Y` tags to the just-released `vX.Y.Z` (run after publish CI is green) |
 
 ### Diagnostics
 

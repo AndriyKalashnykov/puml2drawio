@@ -121,12 +121,6 @@ When spawning subagents, always pass conventions from the respective skill into 
 
 Deferred work from initial scaffold (2026-04-16). Keep this list current — resolve items or justify why they're still open.
 
-### Pre-commit verification (not run during scaffold)
-
-- [ ] `make ci` — full local pipeline: `static-check` + `test` + `e2e`. Pulls catalyst and builds the image; ~2–5 min first run.
-- [ ] `make ci-run` — executes `.github/workflows/ci.yml` end-to-end via `act`. Confirms the workflow on a fresh runner, not just the host.
-- [ ] `pnpm exec vitest run test/options.test.mjs test/runner.test.mjs` — fastest sanity check; pure-logic tests pass without network or Docker. `convert.test.mjs`'s filesystem case also runs standalone.
-
 ### Known gaps
 
 - [ ] **No `pnpm-lock.yaml`** yet. First `make deps` / `pnpm install` generates it. Commit so `ci.yml`'s `cache: 'pnpm'` works reliably and `Dockerfile` can use `--frozen-lockfile`.
