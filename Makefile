@@ -13,7 +13,7 @@ CATALYST_REF  := $(shell tr -d '[:space:]' < CATALYST_REF 2>/dev/null)
 # source of truth for local dev (mise-activated shell) and CI (jdx/mise-action).
 # Only tools that mise cannot manage stay pinned in the Makefile.
 # renovate: datasource=docker depName=minlag/mermaid-cli
-MERMAID_CLI_VERSION := 11.4.2    # Docker image, consumed via `docker run`
+MERMAID_CLI_VERSION := 11.12.0    # Docker image, consumed via `docker run`
 
 # Docker coordinates
 DOCKER_IMAGE    := $(APP_NAME)
