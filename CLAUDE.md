@@ -93,7 +93,7 @@ Git tags use `vX.Y.Z`; the Docker metadata-action strips the `v` to produce bare
 
 - `CATALYST_REF` — pinned SHA of `localgod/catalyst`. Single source of truth; the Makefile reads it via `$(shell tr -d '[:space:]' < CATALYST_REF)`, the Dockerfile consumes it as a `--build-arg`, and Renovate tracks the upstream branch head.
 - `.nvmrc` = `24`. `.mise.toml` reads from it. CI uses `node-version-file: '.nvmrc'` on `setup-node`. Never hardcode the Node version elsewhere.
-- `Makefile` tool versions (`HADOLINT_VERSION`, `ACT_VERSION`, `TRIVY_VERSION`, `SHELLCHECK_VERSION`, `MERMAID_CLI_VERSION`) each have a `# renovate:` inline comment — a single generic `customManagers` regex in `renovate.json` tracks all of them. Adding a new pinned tool requires only the inline comment; no `renovate.json` change.
+- Tool versions live in `.mise.toml` (hadolint, act, trivy, shellcheck, node) — renovate's built-in `mise` manager tracks them via inline `# renovate:` comments. Only `MERMAID_CLI_VERSION` (Docker-image-only, not mise-supported) stays in the Makefile with a `# renovate:` comment picked up by the generic `customManagers` regex. Adding a new mise-managed tool: pin it in `.mise.toml` with a `# renovate:` comment; no `Makefile` or `renovate.json` change needed. Adding a Docker-image-only tool: inline the `_VERSION` constant in the Makefile with a `# renovate:` comment.
 
 ## Conventions
 

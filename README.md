@@ -16,7 +16,7 @@ Dockerized CLI that converts PlantUML C4 diagrams (`.puml`) to draw.io XML (`.dr
 | Registry | GitHub Container Registry (GHCR), multi-arch `linux/amd64` + `linux/arm64` |
 | Signing | [cosign](https://docs.sigstore.dev/cosign/overview/) keyless OIDC on tag pushes |
 | Tests | Vitest |
-| Version manager | mise (local), `actions/setup-node` (CI) |
+| Version manager | mise — `.mise.toml` single source of truth; `jdx/mise-action` in CI for tool parity |
 
 ```mermaid
 flowchart LR
@@ -157,7 +157,7 @@ Behind the scenes, the Action runs the published GHCR image (`docker://ghcr.io/a
 | [Docker](https://www.docker.com/) | latest | Image build + image-based tests + mermaid-lint |
 | [Node.js](https://nodejs.org/) | 24 (from `.nvmrc`) | Runtime for CLI + Vitest (auto-installed by mise) |
 | [pnpm](https://pnpm.io/) | per `packageManager` in `package.json` | Wrapper dependency management (auto-enabled via corepack) |
-| [mise](https://mise.jdx.dev/) | latest | Installs Node 24 + pnpm per `.mise.toml` (auto-installed by `make deps`) |
+| [mise](https://mise.jdx.dev/) | latest | Installs Node 24, hadolint, act, trivy, shellcheck per `.mise.toml` (auto-installed by `make deps`) |
 
 One-shot setup:
 
@@ -165,7 +165,7 @@ One-shot setup:
 make deps
 ```
 
-First run installs mise to `~/.local/bin` and exits, asking for shell activation. The second run installs Node, pnpm, and the vendored catalyst build.
+First run installs mise to `~/.local/bin` and exits, asking for shell activation. The second run installs everything pinned in `.mise.toml` (Node, hadolint, act, trivy, shellcheck), enables pnpm via corepack, and builds the vendored catalyst.
 
 ## Architecture
 

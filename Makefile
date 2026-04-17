@@ -8,17 +8,12 @@ CURRENTTAG    := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev
 NODE_VERSION  := $(shell cat .nvmrc 2>/dev/null || echo 24)
 CATALYST_REF  := $(shell tr -d '[:space:]' < CATALYST_REF 2>/dev/null)
 
-# === Tool Versions (pinned) ===
-# renovate: datasource=github-releases depName=hadolint/hadolint
-HADOLINT_VERSION    := 2.14.0
-# renovate: datasource=github-releases depName=nektos/act
-ACT_VERSION         := 0.2.87
-# renovate: datasource=github-releases depName=aquasecurity/trivy
-TRIVY_VERSION       := 0.69.3
-# renovate: datasource=github-releases depName=koalaman/shellcheck
-SHELLCHECK_VERSION  := 0.10.0
+# === Tool Versions ===
+# hadolint, act, trivy, shellcheck and node are pinned in .mise.toml — one
+# source of truth for local dev (mise-activated shell) and CI (jdx/mise-action).
+# Only tools that mise cannot manage stay pinned in the Makefile.
 # renovate: datasource=docker depName=minlag/mermaid-cli
-MERMAID_CLI_VERSION := 11.4.2
+MERMAID_CLI_VERSION := 11.4.2    # Docker image, consumed via `docker run`
 
 # Docker coordinates
 DOCKER_IMAGE    := $(APP_NAME)
@@ -27,9 +22,12 @@ DOCKER_REPO     ?= andriykalashnykov/$(DOCKER_IMAGE)
 DOCKER_TAG      ?= $(CURRENTTAG)
 GHCR_USER       ?= andriykalashnykov
 
-# Ensure ~/.local/bin (hadolint, act, trivy, shellcheck) is on PATH in every
-# sub-shell, including the act runner container. See /makefile skill §5c.
-export PATH := $(HOME)/.local/bin:$(PATH)
+# Put mise shims first so tools declared in .mise.toml (hadolint, act, trivy,
+# shellcheck, node) are on PATH in every sub-shell even when mise hasn't been
+# `eval "$$(mise activate)"`d (fresh terminals, minimal CI containers, act
+# runners). Falls back to $HOME/.local/bin for any tool installed there.
+# See /makefile skill §5c.
+export PATH := $(HOME)/.local/share/mise/shims:$(HOME)/.local/bin:$(PATH)
 
 # CI-safe pnpm install (locked in CI, flexible locally)
 PNPM_INSTALL := pnpm install $(if $(CI),--frozen-lockfile,)
@@ -40,7 +38,7 @@ help:
 	@echo "Commands:"
 	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST) | tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-22s\033[0m %s\n", $$1, $$2}'
 
-#deps: @ Install mise-managed Node, pnpm and build vendored catalyst
+#deps: @ Install mise-managed tools (node, hadolint, act, trivy, shellcheck), pnpm and build vendored catalyst
 deps:
 	@if [ -z "$$CI" ] && ! command -v mise >/dev/null 2>&1; then \
 		echo "Installing mise (no root required, installs to ~/.local/bin)..."; \
@@ -51,7 +49,9 @@ deps:
 		echo '  zsh:  echo '\''eval "$$(~/.local/bin/mise activate zsh)"''  >> ~/.zshrc'; \
 		exit 0; \
 	fi
-	@if [ -z "$$CI" ] && command -v mise >/dev/null 2>&1; then \
+	@# `mise install` runs in BOTH local (mise shell-activated) and CI (jdx/mise-action
+	@# pre-installs mise). Reads .mise.toml — node, hadolint, act, trivy, shellcheck.
+	@if command -v mise >/dev/null 2>&1; then \
 		mise install; \
 	else \
 		command -v node >/dev/null 2>&1 || { echo "Error: Node.js >=$(NODE_VERSION) required."; exit 1; }; \
@@ -72,59 +72,6 @@ deps-check:
 	@printf "  %-16s %s\n" "act:" "$$(command -v act >/dev/null 2>&1 && act --version || echo 'NOT installed')"
 	@printf "  %-16s %s\n" "trivy:" "$$(command -v trivy >/dev/null 2>&1 && trivy --version | head -1 || echo 'NOT installed')"
 	@printf "  %-16s %s\n" "CATALYST_REF:" "$(CATALYST_REF)"
-
-#deps-hadolint: @ Install hadolint for Dockerfile linting
-deps-hadolint:
-	@command -v hadolint >/dev/null 2>&1 || { \
-		echo "Installing hadolint $(HADOLINT_VERSION)..."; \
-		mkdir -p $$HOME/.local/bin; \
-		os=$$(uname -s); arch=$$(uname -m); \
-		case "$$os-$$arch" in \
-			Linux-x86_64)  suffix="Linux-x86_64" ;; \
-			Linux-aarch64) suffix="Linux-arm64" ;; \
-			Darwin-x86_64) suffix="Darwin-x86_64" ;; \
-			Darwin-arm64)  suffix="Darwin-arm64" ;; \
-			*) echo "Unsupported platform: $$os-$$arch"; exit 1 ;; \
-		esac; \
-		curl -sSfL -o /tmp/hadolint "https://github.com/hadolint/hadolint/releases/download/v$(HADOLINT_VERSION)/hadolint-$$suffix" && \
-		install -m 755 /tmp/hadolint $$HOME/.local/bin/hadolint && \
-		rm -f /tmp/hadolint; \
-	}
-
-#deps-shellcheck: @ Install shellcheck for shell script linting
-deps-shellcheck:
-	@command -v shellcheck >/dev/null 2>&1 || { \
-		echo "Installing shellcheck $(SHELLCHECK_VERSION)..."; \
-		mkdir -p $$HOME/.local/bin; \
-		os=$$(uname -s | tr '[:upper:]' '[:lower:]'); arch=$$(uname -m); \
-		case "$$os-$$arch" in \
-			linux-x86_64)  suffix="linux.x86_64" ;; \
-			linux-aarch64) suffix="linux.aarch64" ;; \
-			darwin-x86_64) suffix="darwin.x86_64" ;; \
-			darwin-arm64)  suffix="darwin.aarch64" ;; \
-			*) echo "Unsupported platform: $$os-$$arch"; exit 1 ;; \
-		esac; \
-		curl -sSfL -o /tmp/shellcheck.tar.xz "https://github.com/koalaman/shellcheck/releases/download/v$(SHELLCHECK_VERSION)/shellcheck-v$(SHELLCHECK_VERSION).$$suffix.tar.xz" && \
-		tar -xJf /tmp/shellcheck.tar.xz -C /tmp && \
-		install -m 755 /tmp/shellcheck-v$(SHELLCHECK_VERSION)/shellcheck $$HOME/.local/bin/shellcheck && \
-		rm -rf /tmp/shellcheck-v$(SHELLCHECK_VERSION) /tmp/shellcheck.tar.xz; \
-	}
-
-#deps-act: @ Install act (nektos/act) for running workflows locally
-deps-act: deps
-	@command -v act >/dev/null 2>&1 || { \
-		echo "Installing act $(ACT_VERSION)..."; \
-		mkdir -p $$HOME/.local/bin; \
-		curl -sSfL https://raw.githubusercontent.com/nektos/act/master/install.sh | bash -s -- -b $$HOME/.local/bin v$(ACT_VERSION); \
-	}
-
-#deps-trivy: @ Install trivy for filesystem security scans
-deps-trivy:
-	@command -v trivy >/dev/null 2>&1 || { \
-		echo "Installing trivy $(TRIVY_VERSION)..."; \
-		mkdir -p $$HOME/.local/bin; \
-		curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/v$(TRIVY_VERSION)/contrib/install.sh | sh -s -- -b $$HOME/.local/bin v$(TRIVY_VERSION); \
-	}
 
 #fetch-catalyst: @ Clone and build localgod/catalyst at pinned CATALYST_REF
 fetch-catalyst:
@@ -161,12 +108,12 @@ action-test:
 lint: deps lint-docker lint-shell
 	@find src test -name '*.mjs' -print0 | xargs -0 -n1 node --check
 
-#lint-docker: @ Lint Dockerfile with hadolint
-lint-docker: deps-hadolint
+#lint-docker: @ Lint Dockerfile with hadolint (mise-managed)
+lint-docker: deps
 	@hadolint Dockerfile
 
-#lint-shell: @ Lint shell scripts with shellcheck
-lint-shell: deps-shellcheck
+#lint-shell: @ Lint shell scripts with shellcheck (mise-managed)
+lint-shell: deps
 	@shellcheck scripts/*.sh
 
 #vulncheck: @ Scan pnpm dependencies for known CVEs (moderate+; informational)
@@ -177,8 +124,8 @@ vulncheck: deps
 	@# below gates the build on real CVEs, secrets, and misconfigs.
 	@pnpm audit --audit-level=moderate || echo "note: pnpm audit endpoint returned 410 — trivy-fs is the real CVE gate"
 
-#trivy-fs: @ Scan filesystem for CVEs, secrets, misconfigs (CRITICAL/HIGH)
-trivy-fs: deps-trivy
+#trivy-fs: @ Scan filesystem for CVEs, secrets, misconfigs (CRITICAL/HIGH) (mise-managed)
+trivy-fs: deps
 	@# Skip upstream catalyst dev-only subtrees — their dev Dockerfile and
 	@# demo-slides package-lock.json are never copied into our runtime image
 	@# (.dockerignore excludes vendor/ entirely). Scanning them produces
@@ -272,8 +219,8 @@ e2e: image-build
 ci: deps static-check test integration-test action-test e2e
 	@echo "Local CI pipeline passed."
 
-#ci-run: @ Run GitHub Actions workflow (ci.yml) locally via act
-ci-run: deps-act
+#ci-run: @ Run GitHub Actions workflow (ci.yml) locally via act (mise-managed)
+ci-run: deps
 	@docker container prune -f 2>/dev/null || true
 	@ACT_PORT=$$(shuf -i 40000-59999 -n 1); \
 	ARTIFACT_PATH=$$(mktemp -d -t act-artifacts.XXXXXX); \
@@ -316,7 +263,7 @@ release-floating-tags:
 		git push --force origin "$$major" "$$minor" && \
 		echo "Floating tags $$major and $$minor now point at $(VERSION)."
 
-.PHONY: help deps deps-check deps-hadolint deps-shellcheck deps-act deps-trivy fetch-catalyst clean \
+.PHONY: help deps deps-check fetch-catalyst clean \
 	build test test-coverage integration-test action-test \
 	lint lint-docker lint-shell vulncheck trivy-fs mermaid-lint static-check \
 	image-build image-run image-sample image-push image-stop e2e \

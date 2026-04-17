@@ -1,2 +1,10 @@
 [tools]
 node = "24"
+# renovate: datasource=github-releases depName=hadolint/hadolint
+hadolint = "2.14.0"
+# renovate: datasource=github-releases depName=nektos/act
+act = "0.2.87"
+# renovate: datasource=github-releases depName=aquasecurity/trivy
+trivy = "0.69.3"
+# renovate: datasource=github-releases depName=koalaman/shellcheck
+shellcheck = "0.10.0"
