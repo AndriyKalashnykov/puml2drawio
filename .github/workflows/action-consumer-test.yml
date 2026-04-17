@@ -27,6 +27,15 @@ jobs:
       - name: Create test PlantUML input
         run: |
           mkdir -p test-diagrams/nested
+          # Pre-create the output directory and open write perms so the
+          # container's non-root `app` user (UID 10001) can mkdir into the
+          # runner-owned workspace mount. Without this, the CLI's
+          # `mkdir test-output` call fails with EACCES. The main Makefile's
+          # `make e2e` target sidesteps this entirely by using stdin mode,
+          # but the action-consumer-test must exercise the directory input
+          # path — hence the explicit chmod here.
+          mkdir -p test-output
+          chmod 777 test-output
           cat > test-diagrams/context.puml <<'EOF'
           @startuml
           actor User
