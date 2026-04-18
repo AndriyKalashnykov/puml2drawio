@@ -14,6 +14,12 @@ CATALYST_REF  := $(shell tr -d '[:space:]' < CATALYST_REF 2>/dev/null)
 # Only tools that mise cannot manage stay pinned in the Makefile.
 # renovate: datasource=docker depName=minlag/mermaid-cli
 MERMAID_CLI_VERSION := 11.12.0    # Docker image, consumed via `docker run`
+# renovate: datasource=docker depName=plantuml/plantuml
+PLANTUML_VERSION    := 1.2026.2   # Docker image, consumed via `docker run`
+# renovate: datasource=docker depName=rlespinasse/drawio-export
+DRAWIO_EXPORT_TAG   := v4.48.0    # Docker image tag (v-prefixed), consumed via `docker run`
+# renovate: datasource=docker depName=alpine
+ALPINE_VERSION      := 3.22.0     # Minimal container used by diagrams-png for chown
 
 # Docker coordinates
 DOCKER_IMAGE    := $(APP_NAME)
@@ -77,9 +83,12 @@ deps-check:
 require-docker:
 	@command -v docker >/dev/null 2>&1 || { echo "Error: docker required."; exit 1; }
 
-#fetch-catalyst: @ Clone and build localgod/catalyst at pinned CATALYST_REF
+#fetch-catalyst: @ Clone and build catalyst at pinned CATALYST_REF
+# Temporarily sourced from AndriyKalashnykov/catalyst (fork) while upstream PRs
+# for https://github.com/localgod/catalyst/issues/554 are pending review. Flip
+# CATALYST_REPO back to localgod/catalyst once the fixes land upstream.
 fetch-catalyst:
-	@bash scripts/fetch-catalyst.sh
+	@CATALYST_REPO=https://github.com/AndriyKalashnykov/catalyst.git bash scripts/fetch-catalyst.sh
 
 #clean: @ Remove build artefacts (node_modules, coverage, vendored catalyst, build/, dist/)
 clean:
@@ -174,8 +183,12 @@ static-check: lint vulncheck trivy-fs mermaid-lint
 	@echo "Static check passed."
 
 #image-build: @ Build Docker image (pinned CATALYST_REF)
+# CATALYST_REPO mirrors the fetch-catalyst override while upstream PRs are
+# pending (see issue #554 on localgod/catalyst). Flip back to the Dockerfile
+# default (localgod/catalyst.git) once the fixes land upstream.
 image-build: require-docker
 	@docker buildx build --load \
+		--build-arg CATALYST_REPO=https://github.com/AndriyKalashnykov/catalyst.git \
 		--build-arg CATALYST_REF=$(CATALYST_REF) \
 		-t $(DOCKER_IMAGE):$(DOCKER_TAG) \
 		$(if $(filter-out dev,$(DOCKER_TAG)),-t $(DOCKER_IMAGE):latest,) .
@@ -190,6 +203,14 @@ image-sample: image-build
 	@docker run --rm -v "$(PWD):/work" -w /work \
 		$(DOCKER_IMAGE):$(DOCKER_TAG) sample/example.puml -o build/sample.drawio
 	@echo "Output: build/sample.drawio"
+
+#diagrams-png: @ Render every sample/*.puml side-by-side (expected vs actual) PNGs into build/png/
+diagrams-png: image-build
+	@PLANTUML_IMAGE=plantuml/plantuml:$(PLANTUML_VERSION) \
+		DRAWIO_EXPORT_IMAGE=rlespinasse/drawio-export:$(DRAWIO_EXPORT_TAG) \
+		ALPINE_IMAGE=alpine:$(ALPINE_VERSION) \
+		DOCKER_IMAGE=$(DOCKER_IMAGE) DOCKER_TAG=$(DOCKER_TAG) \
+		bash scripts/diagrams-png.sh
 
 #image-push: @ Tag and push image to $(DOCKER_REGISTRY)/$(DOCKER_REPO)
 image-push: image-build
@@ -268,5 +289,5 @@ release-floating-tags:
 .PHONY: help deps deps-check require-docker fetch-catalyst clean \
 	build test test-coverage integration-test action-test \
 	lint lint-docker lint-shell vulncheck trivy-fs mermaid-lint static-check \
-	image-build image-run image-sample image-push image-stop e2e \
+	image-build image-run image-sample image-push image-stop diagrams-png e2e \
 	ci ci-run renovate-validate release release-floating-tags
