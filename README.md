@@ -109,6 +109,23 @@ cat diagram.puml | docker run --rm -i \
 
 The `-` positional tells the CLI to read from stdin. Output goes to stdout by default; add `-o file.drawio` to write to a file instead.
 
+### Render PNGs (convert + re-layout + export)
+
+Three-step pipeline to turn `sample/*.puml` into publication-ready PNGs:
+
+```bash
+make image-sample                                     # sample/*.puml → build/*.drawio
+make drawio-layout INPUT=build/c4-container.drawio    # ELK re-layout (direction=AUTO)
+make drawio-layout INPUT=build/c4-context.drawio
+make drawio-png                                       # build/*.drawio → build/png/*.drawio.png
+```
+
+- `make image-sample` produces one `.drawio` per `sample/*.puml`. Output filename matches the input stem (`build/<stem>.drawio`).
+- `make drawio-layout` is optional — catalyst's built-in dagre layout already works for sparse diagrams but can cram dense ones. The ELK post-processor picks direction per diagram structure (see the [Diagram Rendering & Layout](#diagram-rendering--layout) subsection for the heuristic and overrides).
+- `make drawio-png` runs `rlespinasse/drawio-export` against every `build/*.drawio` and writes `build/png/<stem>.drawio.png`.
+
+To also render the source PUMLs as PNGs (for visual diff against catalyst's output), run `make diagrams-png` instead — it composes PUML→PNG and drawio→PNG in a single step and produces side-by-side `<stem>.puml.png` + `<stem>.drawio.png` pairs.
+
 ### GitHub Action — single file
 
 ```yaml
