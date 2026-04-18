@@ -109,6 +109,33 @@ cat diagram.puml | docker run --rm -i \
 
 The `-` positional tells the CLI to read from stdin. Output goes to stdout by default; add `-o file.drawio` to write to a file instead.
 
+### Render PNGs for every sample (one-liner)
+
+```bash
+make diagrams-png
+```
+
+Produces side-by-side pairs under `build/png/`:
+
+| File | Source | Renderer |
+|---|---|---|
+| `<stem>.puml.png` | `sample/<stem>.puml` | `plantuml/plantuml` |
+| `<stem>.drawio.png` | `build/<stem>.drawio` (catalyst + ELK) | `rlespinasse/drawio-export` |
+
+The target pipes every `sample/*.puml` through four stages: plantuml-rendered PNG (the reference) → catalyst conversion to `.drawio` → ELK re-layout (auto-direction, see [Diagram Rendering & Layout](#diagram-rendering--layout)) → drawio-export to PNG. Skip the re-layout stage with `SKIP_DRAWIO_LAYOUT=1 make diagrams-png` if you want catalyst's raw dagre output.
+
+### Step-by-step equivalent
+
+Call the individual targets when you need finer control — e.g. render only one format, re-layout a specific diagram with a non-default direction, or render an arbitrary drawio from outside `sample/`:
+
+```bash
+make image-sample                                           # sample/*.puml → build/*.drawio
+make drawio-layout INPUT=build/c4-context.drawio            # (direction=RIGHT, auto)
+make drawio-layout INPUT=build/c4-container.drawio DIRECTION=DOWN
+make puml-png                                               # sample/*.puml → build/png/*.puml.png
+make drawio-png                                             # build/*.drawio → build/png/*.drawio.png
+```
+
 ### GitHub Action — single file
 
 ```yaml
@@ -238,7 +265,38 @@ Run `make help` to see every target.
 | `make puml-png` | Render PUML → PNG via `plantuml/plantuml` (`INPUT=<file\|dir>` `OUTPUT_DIR=<dir>`; defaults `sample` → `build/png/*.puml.png`) |
 | `make drawio-png` | Render drawio → PNG via `rlespinasse/drawio-export` (`INPUT=<file\|dir>` `OUTPUT_DIR=<dir>`; defaults `build` → `build/png/*.drawio.png`) |
 | `make diagrams-png` | Side-by-side: render every `sample/*.puml` twice (source via plantuml, catalyst-output via drawio-export) for visual diff |
-| `make drawio-layout INPUT=<file> [OUTPUT=<file>]` | Re-layout a drawio file via [elkjs](https://github.com/kieler/elkjs). Handles dense diagrams better than catalyst's built-in dagre — use when the auto-layout is cramped. Default output: overwrite in-place |
+| `make drawio-layout INPUT=<file> [OUTPUT=<file>] [DIRECTION=…]` | Re-layout a drawio file via [elkjs](https://github.com/kieler/elkjs). Handles dense diagrams better than catalyst's built-in dagre — use when the auto-layout is cramped. Default output: overwrite in-place. `DIRECTION=` is `AUTO` / `DOWN` / `UP` / `LEFT` / `RIGHT`; `AUTO` (default) picks per diagram — see below |
+
+**`make drawio-layout` — direction selection**
+
+The elkjs layout direction dominates the look of the output. With `DIRECTION=AUTO` (the default), `drawio-layout` inspects the parsed structure and picks:
+
+| Diagram shape | Auto-picks | Rationale |
+|---|---|---|
+| Nested boundaries (any `container=1` shape inside another) | `DOWN` | Deployment / dense Container — vertical flow keeps the outer boundary narrow enough to fit children |
+| One flat boundary with >3 children | `DOWN` | Dense Container — horizontal would explode the page width |
+| Otherwise (sparse Context-style) | `RIGHT` | Landscape reads naturally for single-boundary diagrams with a few peers |
+
+Override per-diagram when the pick isn't what you want:
+
+```bash
+# Typical: let the heuristic decide
+make image-sample                                        # produce build/*.drawio
+make drawio-layout INPUT=build/c4-context.drawio         # → (direction=RIGHT, auto)
+make drawio-layout INPUT=build/c4-container.drawio       # → (direction=DOWN, auto)
+
+# Force a specific direction
+make drawio-layout INPUT=build/foo.drawio DIRECTION=DOWN   # portrait
+make drawio-layout INPUT=build/foo.drawio DIRECTION=RIGHT  # landscape
+
+# Separate output file
+make drawio-layout INPUT=build/foo.drawio OUTPUT=build/foo.laid.drawio
+
+# Direct CLI (same knobs, plus --nodesep/--edgesep/--ranksep tuning)
+node src/layout-drawio-cli.mjs build/foo.drawio -o out.drawio --direction=RIGHT --ranksep=150
+```
+
+The effective direction is printed on stderr so logs show which pick was used (`(direction=RIGHT, auto)` vs `(direction=DOWN)`).
 
 ### Quality & Testing
 
