@@ -194,13 +194,18 @@ image-build: require-docker
 		$(if $(filter-out dev,$(DOCKER_TAG)),-t $(DOCKER_IMAGE):latest,) .
 
 #image-run: @ Run built image (override with ARGS="diagrams/ -o out/")
+# Run under the host UID/GID (overrides the image's USER 10001) so anything
+# written to the mounted $PWD lands host-owned. Without this, the container
+# user cannot write into a host-owned build/ and the run fails with EACCES.
 image-run:
-	@docker run --rm -v "$(PWD):/work" -w /work $(DOCKER_IMAGE):$(DOCKER_TAG) $(ARGS)
+	@docker run --rm --user "$$(id -u):$$(id -g)" \
+		-v "$(PWD):/work" -w /work $(DOCKER_IMAGE):$(DOCKER_TAG) $(ARGS)
 
 #image-sample: @ Convert sample/example.puml via the built image
 image-sample: image-build
 	@mkdir -p build
-	@docker run --rm -v "$(PWD):/work" -w /work \
+	@docker run --rm --user "$$(id -u):$$(id -g)" \
+		-v "$(PWD):/work" -w /work \
 		$(DOCKER_IMAGE):$(DOCKER_TAG) sample/example.puml -o build/sample.drawio
 	@echo "Output: build/sample.drawio"
 
