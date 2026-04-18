@@ -201,13 +201,12 @@ image-run:
 	@docker run --rm --user "$$(id -u):$$(id -g)" \
 		-v "$(PWD):/work" -w /work $(DOCKER_IMAGE):$(DOCKER_TAG) $(ARGS)
 
-#image-sample: @ Convert sample/example.puml via the built image
+#image-sample: @ Batch-convert every sample/*.puml via the built image → build/*.drawio
 image-sample: image-build
 	@mkdir -p build
 	@docker run --rm --user "$$(id -u):$$(id -g)" \
 		-v "$(PWD):/work" -w /work \
-		$(DOCKER_IMAGE):$(DOCKER_TAG) sample/example.puml -o build/sample.drawio
-	@echo "Output: build/sample.drawio"
+		$(DOCKER_IMAGE):$(DOCKER_TAG) sample -o build/
 
 #puml-png: @ Render PUML → PNG via plantuml (INPUT=<file|dir> OUTPUT_DIR=<dir>, defaults sample → build/png; outputs <stem>.puml.png)
 puml-png: require-docker
