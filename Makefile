@@ -223,10 +223,12 @@ drawio-png: require-docker
 		ALPINE_IMAGE=alpine:$(ALPINE_VERSION) \
 		bash scripts/drawio-to-png.sh
 
-#drawio-layout: @ Re-layout a drawio file via elkjs (INPUT=<file> [OUTPUT=<file>], default overwrite in-place)
+#drawio-layout: @ Re-layout a drawio via elkjs (INPUT=<file> [OUTPUT=<file>] [DIRECTION=AUTO|DOWN|RIGHT|UP|LEFT], default DIRECTION=AUTO picks per diagram structure)
 drawio-layout: deps
 	@test -n "$(INPUT)" || { echo "Error: pass INPUT=<path/to/file.drawio>"; exit 2; }
-	@node src/layout-drawio-cli.mjs "$(INPUT)" $(if $(OUTPUT),-o "$(OUTPUT)")
+	@node src/layout-drawio-cli.mjs "$(INPUT)" \
+		$(if $(OUTPUT),-o "$(OUTPUT)") \
+		$(if $(DIRECTION),--direction=$(DIRECTION))
 
 #diagrams-png: @ Render every sample/*.puml side-by-side (expected vs actual) PNGs into build/png/
 diagrams-png: image-build

@@ -186,20 +186,55 @@ function applyPageSize(doc, laid) {
 }
 
 /**
+ * Pick a sensible layout direction from the parsed drawio structure.
+ * Heuristic: Context-style diagrams (few shapes, at most one shallow boundary
+ * wrapping a handful of peers) read better in RIGHT (landscape) because the
+ * flow is usually a single chain of systems. Container/Deployment diagrams
+ * (nested boundaries OR any boundary with many peer children) read better
+ * in DOWN (portrait) because the boundary needs vertical room to enclose
+ * its siblings without exploding the page width.
+ *
+ * Returns `'RIGHT'` or `'DOWN'`. Exported for tests.
+ */
+export function pickDirection(objects) {
+    const shapes = objects.filter((o) => !isEdge(o))
+    const childCount = new Map()
+    let hasNestedContainer = false
+    const isContainer = (o) =>
+        (getMxCell(o)?.['@_style'] ?? '').includes('container=1')
+    const containerAliases = new Set(
+        shapes.filter(isContainer).map((o) => alias(o)),
+    )
+    for (const o of shapes) {
+        const p = parent(o)
+        if (p && p !== '1') {
+            childCount.set(p, (childCount.get(p) ?? 0) + 1)
+            if (containerAliases.has(p) && isContainer(o)) {
+                hasNestedContainer = true
+            }
+        }
+    }
+    const maxChildren = childCount.size === 0 ? 0 : Math.max(...childCount.values())
+    if (hasNestedContainer) return 'DOWN'
+    if (maxChildren > 3) return 'DOWN'
+    return 'RIGHT'
+}
+
+/**
  * Re-layout a drawio XML string via elkjs.
  * @param {string} xmlIn - drawio XML (a full <mxfile>…</mxfile> document)
  * @param {object} [options]
- * @param {'DOWN'|'UP'|'LEFT'|'RIGHT'} [options.direction='DOWN']
+ * @param {'AUTO'|'DOWN'|'UP'|'LEFT'|'RIGHT'} [options.direction='AUTO']  `AUTO` picks via `pickDirection`
  * @param {number} [options.nodesep=60]
  * @param {number} [options.edgesep=20]
  * @param {number} [options.ranksep=120]
- * @returns {Promise<string>}
+ * @returns {Promise<{xml: string, direction: string}>}
  */
 export async function layoutDrawio(xmlIn, options = {}) {
     const doc = PARSER.parse(xmlIn)
     const objects = getObjects(doc)
     if (objects.length === 0) {
-        return xmlIn
+        return { xml: xmlIn, direction: 'DOWN' }
     }
 
     const objectsByAlias = new Map()
@@ -208,11 +243,14 @@ export async function layoutDrawio(xmlIn, options = {}) {
         if (a && !isEdge(obj)) objectsByAlias.set(a, obj)
     }
 
-    const graph = buildElkGraph(objects, options)
+    const requested = options.direction ?? 'AUTO'
+    const direction = requested === 'AUTO' ? pickDirection(objects) : requested
+
+    const graph = buildElkGraph(objects, { ...options, direction })
     const laid = await elk.layout(graph)
 
     applyElkLayout(laid, objectsByAlias)
     applyPageSize(doc, laid)
 
-    return BUILDER.build(doc)
+    return { xml: BUILDER.build(doc), direction }
 }
