@@ -1,10 +1,17 @@
+// Layout defaults. Chosen for readability on real-world C4 diagrams:
+// the prior dagre defaults (50/10/50/20/20) crammed shapes so tightly that
+// labels overlapped edges and nested boundaries pressed against their
+// children. Bumps below give shapes room to breathe without visibly
+// inflating simple diagrams. Every field can still be overridden per-call
+// via CLI flag (`--nodesep=…`) or env var (`CATALYST_NODESEP=…`) — see
+// ENV_MAP below and the three-tier precedence in resolveOptions().
 export const DEFAULTS = Object.freeze({
   layoutDirection: 'TB',
-  nodesep: 50,
+  nodesep: 100,
   edgesep: 10,
-  ranksep: 50,
-  marginx: 20,
-  marginy: 20
+  ranksep: 120,
+  marginx: 40,
+  marginy: 40
 })
 
 export const ENV_MAP = Object.freeze({
