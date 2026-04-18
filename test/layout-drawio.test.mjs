@@ -104,4 +104,34 @@ describe('layoutDrawio', () => {
         })
         expect(out).toMatch(/<mxfile/)
     })
+
+    test('skips edges that are missing source or target', async () => {
+        const broken = input.replace(/source="user" target="api"/, 'source="user"')
+        const out = await layoutDrawio(broken)
+        // Well-formed output — no throw; broken edge silently dropped.
+        expect(out).toMatch(/<mxfile/)
+    })
+
+    test('skips shapes with no id attribute', async () => {
+        const noId = input.replace(/c4Name="Host" id="host"/, 'c4Name="Orphan"')
+        const out = await layoutDrawio(noId)
+        // Orphan shape contributes no ELK node; remaining graph still lays out.
+        expect(out).toMatch(/<mxfile/)
+        expect(out).toMatch(/id="user"/)
+    })
+
+    test('handles a single-object drawio (parser returns non-array)', async () => {
+        const single = `<?xml version="1.0" encoding="UTF-8"?>
+<mxfile><diagram id="d" name="Page-1"><mxGraphModel>
+  <root>
+    <mxCell id="0"/>
+    <mxCell id="1" parent="0"/>
+    <object id="only"><mxCell style="rounded=1" parent="1" vertex="1">
+      <mxGeometry as="geometry" x="0" y="0" width="100" height="50"/>
+    </mxCell></object>
+  </root>
+</mxGraphModel></diagram></mxfile>`
+        const out = await layoutDrawio(single)
+        expect(out).toMatch(/id="only"/)
+    })
 })

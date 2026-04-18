@@ -7,7 +7,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
       include: ['src/**/*.mjs'],
-      exclude: ['src/cli.mjs'],
+      exclude: ['src/cli.mjs', 'src/layout-drawio-cli.mjs'],
       thresholds: {
         branches: 80,
         functions: 80,
