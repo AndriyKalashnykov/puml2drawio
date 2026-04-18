@@ -18,6 +18,8 @@ MERMAID_CLI_VERSION := 11.12.0    # Docker image, consumed via `docker run`
 PLANTUML_VERSION    := 1.2026.2   # Docker image, consumed via `docker run`
 # renovate: datasource=docker depName=rlespinasse/drawio-export
 DRAWIO_EXPORT_TAG   := v4.48.0    # Docker image tag (v-prefixed), consumed via `docker run`
+# renovate: datasource=docker depName=alpine
+ALPINE_VERSION      := 3.22.0     # Minimal container used by diagrams-png for chown
 
 # Docker coordinates
 DOCKER_IMAGE    := $(APP_NAME)
@@ -206,6 +208,7 @@ image-sample: image-build
 diagrams-png: image-build
 	@PLANTUML_IMAGE=plantuml/plantuml:$(PLANTUML_VERSION) \
 		DRAWIO_EXPORT_IMAGE=rlespinasse/drawio-export:$(DRAWIO_EXPORT_TAG) \
+		ALPINE_IMAGE=alpine:$(ALPINE_VERSION) \
 		DOCKER_IMAGE=$(DOCKER_IMAGE) DOCKER_TAG=$(DOCKER_TAG) \
 		bash scripts/diagrams-png.sh
 

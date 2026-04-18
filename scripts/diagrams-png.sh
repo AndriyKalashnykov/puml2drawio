@@ -4,13 +4,14 @@
 #   build/png/<name>.actual.png   — rendered from the catalyst-produced drawio via drawio-export
 # Side-by-side comparison reveals what catalyst drops (Person, System_Ext, boundaries,
 # 3-arg Rels, etc.). Required env vars set by the Makefile: PLANTUML_IMAGE,
-# DRAWIO_EXPORT_IMAGE, DOCKER_IMAGE, DOCKER_TAG.
+# DRAWIO_EXPORT_IMAGE, DOCKER_IMAGE, DOCKER_TAG, ALPINE_IMAGE.
 set -euo pipefail
 
 : "${PLANTUML_IMAGE:?missing}"
 : "${DRAWIO_EXPORT_IMAGE:?missing}"
 : "${DOCKER_IMAGE:?missing}"
 : "${DOCKER_TAG:?missing}"
+: "${ALPINE_IMAGE:?missing}"
 
 if ! ls sample/*.puml >/dev/null 2>&1; then
   echo "No sample/*.puml files found." >&2
@@ -18,9 +19,6 @@ if ! ls sample/*.puml >/dev/null 2>&1; then
 fi
 
 mkdir -p build build/png
-# Give the wrapper container (runs as UID 10001) write access to build/ so it
-# can drop the converted .drawio files next to our host-owned ones.
-chmod 777 build
 rm -rf build/png/actual
 mkdir -p build/png/actual
 
@@ -35,11 +33,14 @@ for puml in sample/*.puml; do
   mv "build/png/$name.png" "build/png/$name.expected.png"
 done
 
-# 2. Convert each PUML via the wrapper image. Catalyst (fork) emits a proper
-#    `<diagram id="..." name="...">` so no XML patching is needed anymore.
+# 2. Convert each PUML via the wrapper image. Running under the host UID/GID
+#    (overrides the image's USER 10001) avoids having to chmod build/ world-
+#    writable and keeps every produced .drawio host-owned from the start.
+#    Catalyst (fork) emits a proper `<diagram id="..." name="...">` so no XML
+#    patching is needed anymore.
 for puml in sample/*.puml; do
   name="$(basename "$puml" .puml)"
-  docker run --rm -v "$PWD:/work" -w /work \
+  docker run --rm --user "$UID_GID" -v "$PWD:/work" -w /work \
     "$DOCKER_IMAGE:$DOCKER_TAG" "$puml" -o "build/$name.drawio"
 done
 
@@ -54,8 +55,8 @@ docker run --rm -v "$PWD:/data" -w /data \
   build/drawio-stage
 rm -rf build/drawio-stage
 
-docker run --rm -v "$PWD:/data" alpine \
-  chown -R "$UID_GID" /data/build/png /data/build
+docker run --rm -v "$PWD:/data" "$ALPINE_IMAGE" \
+  chown -R "$UID_GID" /data/build/png
 
 # 4. Flatten build/png/actual/<name>.png → build/png/<name>.actual.png
 for f in build/png/actual/*.png; do
