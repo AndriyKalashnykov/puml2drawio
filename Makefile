@@ -209,6 +209,21 @@ image-sample: image-build
 		$(DOCKER_IMAGE):$(DOCKER_TAG) sample/example.puml -o build/sample.drawio
 	@echo "Output: build/sample.drawio"
 
+#puml-png: @ Render PUML → PNG via plantuml (INPUT=<file|dir> OUTPUT_DIR=<dir>, defaults sample → build/png; outputs <stem>.puml.png)
+puml-png: require-docker
+	@INPUT=$(or $(INPUT),sample) \
+		OUTPUT_DIR=$(or $(OUTPUT_DIR),build/png) \
+		PLANTUML_IMAGE=plantuml/plantuml:$(PLANTUML_VERSION) \
+		bash scripts/puml-to-png.sh
+
+#drawio-png: @ Render drawio → PNG via drawio-export (INPUT=<file|dir> OUTPUT_DIR=<dir>, defaults build → build/png)
+drawio-png: require-docker
+	@INPUT=$(or $(INPUT),build) \
+		OUTPUT_DIR=$(or $(OUTPUT_DIR),build/png) \
+		DRAWIO_EXPORT_IMAGE=rlespinasse/drawio-export:$(DRAWIO_EXPORT_TAG) \
+		ALPINE_IMAGE=alpine:$(ALPINE_VERSION) \
+		bash scripts/drawio-to-png.sh
+
 #diagrams-png: @ Render every sample/*.puml side-by-side (expected vs actual) PNGs into build/png/
 diagrams-png: image-build
 	@PLANTUML_IMAGE=plantuml/plantuml:$(PLANTUML_VERSION) \
@@ -294,5 +309,5 @@ release-floating-tags:
 .PHONY: help deps deps-check require-docker fetch-catalyst clean \
 	build test test-coverage integration-test action-test \
 	lint lint-docker lint-shell vulncheck trivy-fs mermaid-lint static-check \
-	image-build image-run image-sample image-push image-stop diagrams-png e2e \
+	image-build image-run image-sample image-push image-stop puml-png drawio-png diagrams-png e2e \
 	ci ci-run renovate-validate release release-floating-tags
