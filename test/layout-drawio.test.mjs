@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'vitest'
-import { layoutDrawio } from '../src/layout-drawio.mjs'
+import { layoutDrawio, pickDirection } from '../src/layout-drawio.mjs'
+import { XMLParser } from 'fast-xml-parser'
 
 // Minimal drawio fixture — a Person, a System inside a System_Boundary, and
 // one relationship. Coordinates are intentionally bad (everything stacked
@@ -52,72 +53,65 @@ function geomFor(xml, id) {
 
 describe('layoutDrawio', () => {
     test('produces a well-formed mxfile wrapper', async () => {
-        const out = await layoutDrawio(input)
-        expect(out).toMatch(/<mxfile/)
-        expect(out).toMatch(/<diagram\s+id="d"\s+name="Page-1"/)
-        expect(out).toMatch(/<mxGraphModel/)
+        const { xml } = await layoutDrawio(input)
+        expect(xml).toMatch(/<mxfile/)
+        expect(xml).toMatch(/<diagram\s+id="d"\s+name="Page-1"/)
+        expect(xml).toMatch(/<mxGraphModel/)
     })
 
     test('re-positions shapes off (0,0) — elkjs laid them out', async () => {
-        const out = await layoutDrawio(input)
-        // At least one leaf shape (user, api, or the host container) must have
-        // moved or been resized away from the all-zeros input.
+        const { xml } = await layoutDrawio(input)
         const anyMoved = ['user', 'api', 'host'].some((id) => {
-            const g = geomFor(out, id)
+            const g = geomFor(xml, id)
             return g && (g.x !== 0 || g.y !== 0)
         })
         expect(anyMoved).toBe(true)
     })
 
     test('preserves parent hierarchy in the output', async () => {
-        const out = await layoutDrawio(input)
-        // `api` must still declare host as its parent — layout must not
-        // re-parent nodes to the root cell.
-        expect(out).toMatch(/id="api"[\s\S]*?parent="host"/)
+        const { xml } = await layoutDrawio(input)
+        expect(xml).toMatch(/id="api"[\s\S]*?parent="host"/)
     })
 
     test('keeps edges intact (source + target unchanged)', async () => {
-        const out = await layoutDrawio(input)
-        expect(out).toMatch(/source="user"\s+target="api"/)
+        const { xml } = await layoutDrawio(input)
+        expect(xml).toMatch(/source="user"\s+target="api"/)
     })
 
     test('grows page dimensions to fit the laid-out graph', async () => {
-        const out = await layoutDrawio(input)
-        const pageMatch = out.match(/pageWidth="(\d+)"\s+pageHeight="(\d+)"/) ||
-                          out.match(/pageHeight="(\d+)"\s+pageWidth="(\d+)"/)
+        const { xml } = await layoutDrawio(input)
+        const pageMatch = xml.match(/pageWidth="(\d+)"\s+pageHeight="(\d+)"/) ||
+                          xml.match(/pageHeight="(\d+)"\s+pageWidth="(\d+)"/)
         expect(pageMatch).not.toBeNull()
     })
 
     test('returns input unchanged when no shapes present', async () => {
         const empty = `<?xml version="1.0" encoding="UTF-8"?><mxfile><diagram><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>`
-        const out = await layoutDrawio(empty)
-        expect(out).toBe(empty)
+        const { xml } = await layoutDrawio(empty)
+        expect(xml).toBe(empty)
     })
 
     test('accepts custom ELK options (direction, ranksep, nodesep)', async () => {
-        // Smoke test — just ensures the option plumbing doesn't throw.
-        const out = await layoutDrawio(input, {
+        const { xml } = await layoutDrawio(input, {
             direction: 'RIGHT',
             ranksep: 200,
             nodesep: 80,
             edgesep: 25,
         })
-        expect(out).toMatch(/<mxfile/)
+        expect(xml).toMatch(/<mxfile/)
     })
 
     test('skips edges that are missing source or target', async () => {
         const broken = input.replace(/source="user" target="api"/, 'source="user"')
-        const out = await layoutDrawio(broken)
-        // Well-formed output — no throw; broken edge silently dropped.
-        expect(out).toMatch(/<mxfile/)
+        const { xml } = await layoutDrawio(broken)
+        expect(xml).toMatch(/<mxfile/)
     })
 
     test('skips shapes with no id attribute', async () => {
         const noId = input.replace(/c4Name="Host" id="host"/, 'c4Name="Orphan"')
-        const out = await layoutDrawio(noId)
-        // Orphan shape contributes no ELK node; remaining graph still lays out.
-        expect(out).toMatch(/<mxfile/)
-        expect(out).toMatch(/id="user"/)
+        const { xml } = await layoutDrawio(noId)
+        expect(xml).toMatch(/<mxfile/)
+        expect(xml).toMatch(/id="user"/)
     })
 
     test('handles a single-object drawio (parser returns non-array)', async () => {
@@ -131,7 +125,61 @@ describe('layoutDrawio', () => {
     </mxCell></object>
   </root>
 </mxGraphModel></diagram></mxfile>`
-        const out = await layoutDrawio(single)
-        expect(out).toMatch(/id="only"/)
+        const { xml } = await layoutDrawio(single)
+        expect(xml).toMatch(/id="only"/)
+    })
+
+    test('default direction is AUTO and returns the chosen direction', async () => {
+        const { direction } = await layoutDrawio(input)
+        // Tiny fixture: 1 boundary with 1 child → RIGHT.
+        expect(direction).toBe('RIGHT')
+    })
+
+    test('explicit direction overrides the heuristic', async () => {
+        const { direction } = await layoutDrawio(input, { direction: 'DOWN' })
+        expect(direction).toBe('DOWN')
+    })
+})
+
+describe('pickDirection heuristic', () => {
+    const parse = (xml) => {
+        const parser = new XMLParser({
+            ignoreAttributes: false,
+            attributeNamePrefix: '@_',
+            preserveOrder: false,
+        })
+        const doc = parser.parse(xml)
+        const root = doc?.mxfile?.diagram?.mxGraphModel?.root
+        const raw = root?.object
+        return Array.isArray(raw) ? raw : raw ? [raw] : []
+    }
+
+    test('picks RIGHT for a flat Context-style diagram', () => {
+        // 1 boundary + 2 children + 1 peer outside = sparse layout → RIGHT.
+        const objs = parse(input)
+        expect(pickDirection(objs)).toBe('RIGHT')
+    })
+
+    test('picks DOWN when a boundary has more than 3 children (Container-style)', () => {
+        const dense = `<?xml version="1.0"?><mxfile><diagram><mxGraphModel><root>
+  <mxCell id="0"/><mxCell id="1" parent="0"/>
+  <object id="host"><mxCell style="container=1" parent="1" vertex="1"><mxGeometry as="geometry" width="400" height="300"/></mxCell></object>
+  <object id="a"><mxCell style="rounded=1" parent="host" vertex="1"><mxGeometry as="geometry" width="160" height="80"/></mxCell></object>
+  <object id="b"><mxCell style="rounded=1" parent="host" vertex="1"><mxGeometry as="geometry" width="160" height="80"/></mxCell></object>
+  <object id="c"><mxCell style="rounded=1" parent="host" vertex="1"><mxGeometry as="geometry" width="160" height="80"/></mxCell></object>
+  <object id="d"><mxCell style="rounded=1" parent="host" vertex="1"><mxGeometry as="geometry" width="160" height="80"/></mxCell></object>
+  <object id="e"><mxCell style="rounded=1" parent="host" vertex="1"><mxGeometry as="geometry" width="160" height="80"/></mxCell></object>
+</root></mxGraphModel></diagram></mxfile>`
+        expect(pickDirection(parse(dense))).toBe('DOWN')
+    })
+
+    test('picks DOWN when boundaries are nested (Deployment-style)', () => {
+        const nested = `<?xml version="1.0"?><mxfile><diagram><mxGraphModel><root>
+  <mxCell id="0"/><mxCell id="1" parent="0"/>
+  <object id="outer"><mxCell style="container=1" parent="1" vertex="1"><mxGeometry as="geometry" width="500" height="400"/></mxCell></object>
+  <object id="inner"><mxCell style="container=1" parent="outer" vertex="1"><mxGeometry as="geometry" width="400" height="300"/></mxCell></object>
+  <object id="leaf"><mxCell style="rounded=1" parent="inner" vertex="1"><mxGeometry as="geometry" width="160" height="80"/></mxCell></object>
+</root></mxGraphModel></diagram></mxfile>`
+        expect(pickDirection(parse(nested))).toBe('DOWN')
     })
 })

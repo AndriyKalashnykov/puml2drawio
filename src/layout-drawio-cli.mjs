@@ -23,9 +23,9 @@ async function main() {
             describe: 'output drawio file (default: overwrite input)',
         })
         .option('direction', {
-            choices: ['DOWN', 'UP', 'LEFT', 'RIGHT'],
-            default: 'DOWN',
-            describe: 'ELK layout direction',
+            choices: ['AUTO', 'DOWN', 'UP', 'LEFT', 'RIGHT'],
+            default: 'AUTO',
+            describe: 'ELK layout direction (AUTO picks DOWN for nested/dense, RIGHT for flat/sparse)',
         })
         .option('nodesep', { type: 'number', default: 60 })
         .option('edgesep', { type: 'number', default: 20 })
@@ -43,7 +43,7 @@ async function main() {
     const outputAbs = path.resolve(argv.output ?? inputAbs)
 
     const xmlIn = await fs.readFile(inputAbs, 'utf-8')
-    const xmlOut = await layoutDrawio(xmlIn, {
+    const { xml: xmlOut, direction } = await layoutDrawio(xmlIn, {
         direction: argv.direction,
         nodesep: argv.nodesep,
         edgesep: argv.edgesep,
@@ -52,7 +52,9 @@ async function main() {
 
     await fs.mkdir(path.dirname(outputAbs), { recursive: true })
     await fs.writeFile(outputAbs, xmlOut)
-    console.error(`re-laid: ${inputAbs} -> ${outputAbs}`)
+    const suffix =
+        argv.direction === 'AUTO' ? ` (direction=${direction}, auto)` : ` (direction=${direction})`
+    console.error(`re-laid: ${inputAbs} -> ${outputAbs}${suffix}`)
 }
 
 if (url.fileURLToPath(import.meta.url) === process.argv[1]) {
