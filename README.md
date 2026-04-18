@@ -225,11 +225,20 @@ Run `make help` to see every target.
 | `make build` | Install deps and build Docker image |
 | `make image-build` | Build Docker image only |
 | `make image-run ARGS="..."` | Run image with custom CLI args against `$PWD` |
-| `make image-sample` | Convert `sample/example.puml` with the built image |
+| `make image-sample` | Batch-convert every `sample/*.puml` via the built image → `build/*.drawio` |
 | `make image-push` | Tag + push image to GHCR (requires `docker login` or `GH_ACCESS_TOKEN`) |
 | `make image-stop` | Stop any running puml2drawio container |
 | `make require-docker` | Fail fast when docker CLI is not on PATH (prerequisite of `image-*` and `mermaid-lint`) |
 | `make clean` | Remove `node_modules/`, `vendor/`, `coverage/`, `build/`, `dist/` |
+
+### Diagram Rendering & Layout
+
+| Target | Description |
+|--------|-------------|
+| `make puml-png` | Render PUML → PNG via `plantuml/plantuml` (`INPUT=<file\|dir>` `OUTPUT_DIR=<dir>`; defaults `sample` → `build/png/*.puml.png`) |
+| `make drawio-png` | Render drawio → PNG via `rlespinasse/drawio-export` (`INPUT=<file\|dir>` `OUTPUT_DIR=<dir>`; defaults `build` → `build/png/*.drawio.png`) |
+| `make diagrams-png` | Side-by-side: render every `sample/*.puml` twice (source via plantuml, catalyst-output via drawio-export) for visual diff |
+| `make drawio-layout INPUT=<file> [OUTPUT=<file>]` | Re-layout a drawio file via [elkjs](https://github.com/kieler/elkjs). Handles dense diagrams better than catalyst's built-in dagre — use when the auto-layout is cramped. Default output: overwrite in-place |
 
 ### Quality & Testing
 
