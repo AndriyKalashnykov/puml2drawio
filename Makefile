@@ -223,6 +223,11 @@ drawio-png: require-docker
 		ALPINE_IMAGE=alpine:$(ALPINE_VERSION) \
 		bash scripts/drawio-to-png.sh
 
+#drawio-layout: @ Re-layout a drawio file via elkjs (INPUT=<file> [OUTPUT=<file>], default overwrite in-place)
+drawio-layout: deps
+	@test -n "$(INPUT)" || { echo "Error: pass INPUT=<path/to/file.drawio>"; exit 2; }
+	@node src/layout-drawio-cli.mjs "$(INPUT)" $(if $(OUTPUT),-o "$(OUTPUT)")
+
 #diagrams-png: @ Render every sample/*.puml side-by-side (expected vs actual) PNGs into build/png/
 diagrams-png: image-build
 	@PLANTUML_IMAGE=plantuml/plantuml:$(PLANTUML_VERSION) \
@@ -308,5 +313,5 @@ release-floating-tags:
 .PHONY: help deps deps-check require-docker fetch-catalyst clean \
 	build test test-coverage integration-test action-test \
 	lint lint-docker lint-shell vulncheck trivy-fs mermaid-lint static-check \
-	image-build image-run image-sample image-push image-stop puml-png drawio-png diagrams-png e2e \
+	image-build image-run image-sample image-push image-stop puml-png drawio-png drawio-layout diagrams-png e2e \
 	ci ci-run renovate-validate release release-floating-tags
