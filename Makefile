@@ -14,6 +14,10 @@ CATALYST_REF  := $(shell tr -d '[:space:]' < CATALYST_REF 2>/dev/null)
 # Only tools that mise cannot manage stay pinned in the Makefile.
 # renovate: datasource=docker depName=minlag/mermaid-cli
 MERMAID_CLI_VERSION := 11.12.0    # Docker image, consumed via `docker run`
+# renovate: datasource=docker depName=plantuml/plantuml
+PLANTUML_VERSION    := 1.2026.2   # Docker image, consumed via `docker run`
+# renovate: datasource=docker depName=rlespinasse/drawio-export
+DRAWIO_EXPORT_TAG   := v4.48.0    # Docker image tag (v-prefixed), consumed via `docker run`
 
 # Docker coordinates
 DOCKER_IMAGE    := $(APP_NAME)
@@ -191,6 +195,13 @@ image-sample: image-build
 		$(DOCKER_IMAGE):$(DOCKER_TAG) sample/example.puml -o build/sample.drawio
 	@echo "Output: build/sample.drawio"
 
+#diagrams-png: @ Render every sample/*.puml side-by-side (expected vs actual) PNGs into build/png/
+diagrams-png: image-build
+	@PLANTUML_IMAGE=plantuml/plantuml:$(PLANTUML_VERSION) \
+		DRAWIO_EXPORT_IMAGE=rlespinasse/drawio-export:$(DRAWIO_EXPORT_TAG) \
+		DOCKER_IMAGE=$(DOCKER_IMAGE) DOCKER_TAG=$(DOCKER_TAG) \
+		bash scripts/diagrams-png.sh
+
 #image-push: @ Tag and push image to $(DOCKER_REGISTRY)/$(DOCKER_REPO)
 image-push: image-build
 	@if [ -n "$$GH_ACCESS_TOKEN" ] && echo "$(DOCKER_REGISTRY)" | grep -q "ghcr.io"; then \
@@ -268,5 +279,5 @@ release-floating-tags:
 .PHONY: help deps deps-check require-docker fetch-catalyst clean \
 	build test test-coverage integration-test action-test \
 	lint lint-docker lint-shell vulncheck trivy-fs mermaid-lint static-check \
-	image-build image-run image-sample image-push image-stop e2e \
+	image-build image-run image-sample image-push image-stop diagrams-png e2e \
 	ci ci-run renovate-validate release release-floating-tags
