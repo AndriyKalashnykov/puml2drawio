@@ -34,14 +34,14 @@
     },
     {
       "customType": "regex",
-      "description": "Track localgod/catalyst HEAD commit pinned in CATALYST_REF",
+      "description": "Track AndriyKalashnykov/catalyst (fork) main HEAD pinned in CATALYST_REF. While the fork carries unmerged fixes (see localgod/catalyst#554 PRs #555-#558) we pin to the fork, not upstream — otherwise renovate would repeatedly suggest rolling the ref backward to upstream main, losing the fork commits. Flip this back to localgod/catalyst once the upstream PRs merge and fork/upstream realign.",
       "managerFilePatterns": ["/^CATALYST_REF$/"],
       "matchStrings": [
         "^(?<currentDigest>[a-f0-9]{40})"
       ],
       "currentValueTemplate": "main",
-      "depNameTemplate": "localgod/catalyst",
-      "packageNameTemplate": "https://github.com/localgod/catalyst",
+      "depNameTemplate": "AndriyKalashnykov/catalyst",
+      "packageNameTemplate": "https://github.com/AndriyKalashnykov/catalyst",
       "datasourceTemplate": "git-refs"
     }
   ],
@@ -89,10 +89,10 @@
       "automerge": true
     },
     {
-      "description": "Catalyst upstream pin — open PR but never automerge (breaking-change risk)",
+      "description": "Catalyst pin — open PR but never automerge (breaking-change risk). Matches whichever dep name the custom manager is currently tracking (fork while ahead, upstream once realigned).",
       "matchManagers": ["custom.regex"],
       "matchFileNames": ["CATALYST_REF"],
-      "matchDepNames": ["localgod/catalyst"],
+      "matchDepNames": ["localgod/catalyst", "AndriyKalashnykov/catalyst"],
       "automerge": false,
       "minimumReleaseAge": "1 day",
       "labels": ["dependencies", "catalyst-upstream"]
