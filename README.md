@@ -109,22 +109,32 @@ cat diagram.puml | docker run --rm -i \
 
 The `-` positional tells the CLI to read from stdin. Output goes to stdout by default; add `-o file.drawio` to write to a file instead.
 
-### Render PNGs (convert + re-layout + export)
-
-Three-step pipeline to turn `sample/*.puml` into publication-ready PNGs:
+### Render PNGs for every sample (one-liner)
 
 ```bash
-make image-sample                                     # sample/*.puml → build/*.drawio
-make drawio-layout INPUT=build/c4-container.drawio    # ELK re-layout (direction=AUTO)
-make drawio-layout INPUT=build/c4-context.drawio
-make drawio-png                                       # build/*.drawio → build/png/*.drawio.png
+make diagrams-png
 ```
 
-- `make image-sample` produces one `.drawio` per `sample/*.puml`. Output filename matches the input stem (`build/<stem>.drawio`).
-- `make drawio-layout` is optional — catalyst's built-in dagre layout already works for sparse diagrams but can cram dense ones. The ELK post-processor picks direction per diagram structure (see the [Diagram Rendering & Layout](#diagram-rendering--layout) subsection for the heuristic and overrides).
-- `make drawio-png` runs `rlespinasse/drawio-export` against every `build/*.drawio` and writes `build/png/<stem>.drawio.png`.
+Produces side-by-side pairs under `build/png/`:
 
-To also render the source PUMLs as PNGs (for visual diff against catalyst's output), run `make diagrams-png` instead — it composes PUML→PNG and drawio→PNG in a single step and produces side-by-side `<stem>.puml.png` + `<stem>.drawio.png` pairs.
+| File | Source | Renderer |
+|---|---|---|
+| `<stem>.puml.png` | `sample/<stem>.puml` | `plantuml/plantuml` |
+| `<stem>.drawio.png` | `build/<stem>.drawio` (catalyst + ELK) | `rlespinasse/drawio-export` |
+
+The target pipes every `sample/*.puml` through four stages: plantuml-rendered PNG (the reference) → catalyst conversion to `.drawio` → ELK re-layout (auto-direction, see [Diagram Rendering & Layout](#diagram-rendering--layout)) → drawio-export to PNG. Skip the re-layout stage with `SKIP_DRAWIO_LAYOUT=1 make diagrams-png` if you want catalyst's raw dagre output.
+
+### Step-by-step equivalent
+
+Call the individual targets when you need finer control — e.g. render only one format, re-layout a specific diagram with a non-default direction, or render an arbitrary drawio from outside `sample/`:
+
+```bash
+make image-sample                                           # sample/*.puml → build/*.drawio
+make drawio-layout INPUT=build/c4-context.drawio            # (direction=RIGHT, auto)
+make drawio-layout INPUT=build/c4-container.drawio DIRECTION=DOWN
+make puml-png                                               # sample/*.puml → build/png/*.puml.png
+make drawio-png                                             # build/*.drawio → build/png/*.drawio.png
+```
 
 ### GitHub Action — single file
 

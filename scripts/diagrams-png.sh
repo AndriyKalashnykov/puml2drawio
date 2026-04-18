@@ -42,6 +42,17 @@ for puml in sample/*.puml; do
     "$DOCKER_IMAGE:$DOCKER_TAG" "$puml" -o "build/$name.drawio"
 done
 
+# 2b. Re-layout every produced .drawio via elkjs — the auto-direction
+#     heuristic in layoutDrawio picks RIGHT for sparse Context-style diagrams
+#     and DOWN for nested/dense Container/Deployment diagrams. Skippable with
+#     SKIP_DRAWIO_LAYOUT=1 for callers that want catalyst's raw dagre output.
+if [ -z "${SKIP_DRAWIO_LAYOUT:-}" ]; then
+  for drawio in build/*.drawio; do
+    [ -f "$drawio" ] || continue
+    node src/layout-drawio-cli.mjs "$drawio"
+  done
+fi
+
 # 3. Render drawio → PNG (delegates to drawio-to-png.sh; it applies the
 #    `.drawio.png` suffix and handles the chown dance).
 INPUT=build \
