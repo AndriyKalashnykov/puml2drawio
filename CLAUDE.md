@@ -10,7 +10,7 @@ Dockerized CLI that converts PlantUML C4 diagrams to draw.io XML by wrapping the
 
 The project is a **thin wrapper** — catalyst is not forked. Instead:
 
-1. **`CATALYST_REF`** pins a specific upstream commit SHA of `localgod/catalyst`. Renovate tracks `main` via a `git-refs` custom manager (see `renovate.json`) and opens (but never auto-merges) PRs when the upstream branch advances — upstream API changes need human review.
+1. **`CATALYST_REF`** pins a specific commit SHA. While our fork carries unmerged fixes (upstream PRs `localgod/catalyst#552`, `#553`, `#555`–`#558`), Renovate tracks `AndriyKalashnykov/catalyst@main` via a `git-refs` custom manager (see `renovate.json`); flip back to `localgod/catalyst` once those PRs land. Renovate opens (but never auto-merges) bump PRs — API-affecting changes need human review.
 2. **`scripts/fetch-catalyst.sh`** clones the pinned SHA into `vendor/catalyst/`, runs `npm ci`, transiently installs `typescript@~5.7` (`--no-save`) when `tsc` isn't already in `node_modules/.bin` — upstream catalyst's build script is `tsc` but typescript isn't in its devDependencies — runs `npm run build` (tolerated if it exits non-zero since tsc emits `dist/` anyway), then **wipes `node_modules/` and reinstalls with `--omit=dev --ignore-scripts`** (plain `npm prune --omit=dev` leaves transitive devDep trees intact, shipping HIGH CVEs into the image). Idempotent: skips the whole block when the vendored checkout already matches `CATALYST_REF` and has a `dist/`. The Dockerfile's `catalyst-builder` stage mirrors the same defense.
 3. **`src/convert.mjs`** imports catalyst lazily via a dynamic `import('../vendor/catalyst/dist/catalyst.mjs')` so unit tests that don't exercise conversion (e.g. `options.test.mjs`, `runner.test.mjs`) run without requiring the vendored build.
 4. **Dockerfile** has a three-stage build: `catalyst-builder` stage (alpine + git, clones + builds catalyst, then wipes `node_modules/` and reinstalls with `--omit=dev --ignore-scripts` — `npm prune` leaves transitive devDep trees behind on nested deps), `deps` stage (wrapper's pnpm prod install), `runtime` stage (`node:24-alpine`, **npm/npx/corepack/yarn stripped** — unused at runtime and ship HIGH CVEs in their bundled `minimatch`/`picomatch`/`tar` — non-root `app` user with numeric UID 10001, `WORKDIR /work` so consumers can `-v "$PWD:/work"`).
@@ -91,7 +91,7 @@ Git tags use `vX.Y.Z`; the Docker metadata-action strips the `v` to produce bare
 
 ## Versioning & pins
 
-- `CATALYST_REF` — pinned SHA of `localgod/catalyst`. Single source of truth; the Makefile reads it via `$(shell tr -d '[:space:]' < CATALYST_REF)`, the Dockerfile consumes it as a `--build-arg`, and Renovate tracks the upstream branch head.
+- `CATALYST_REF` — pinned SHA of the catalyst fork (`AndriyKalashnykov/catalyst`, with unmerged upstream fixes; switch back to `localgod/catalyst` once the open PRs merge). Single source of truth; the Makefile reads it via `$(shell tr -d '[:space:]' < CATALYST_REF)`, the Dockerfile consumes it as a `--build-arg`, and Renovate tracks the tracked repo's `main` head.
 - `.nvmrc` = `24`. `.mise.toml` reads from it. CI uses `node-version-file: '.nvmrc'` on `setup-node`. Never hardcode the Node version elsewhere.
 - Tool versions live in `.mise.toml` (hadolint, act, trivy, shellcheck, node) — renovate's built-in `mise` manager tracks them via inline `# renovate:` comments. Only `MERMAID_CLI_VERSION` (Docker-image-only, not mise-supported) stays in the Makefile with a `# renovate:` comment picked up by the generic `customManagers` regex. Adding a new mise-managed tool: pin it in `.mise.toml` with a `# renovate:` comment; no `Makefile` or `renovate.json` change needed. Adding a Docker-image-only tool: inline the `_VERSION` constant in the Makefile with a `# renovate:` comment.
 
@@ -124,7 +124,12 @@ Deferred work from initial scaffold (2026-04-16). Keep this list current — res
 ### Known gaps
 
 - [ ] **`make vulncheck` is informational only** (pnpm 10.33 still queries npm's retired `/-/npm/v1/security/audits` endpoint and gets 410). The target swallows the failure with a note; `make trivy-fs` remains the actual CVE gate in `static-check`. Remove the `|| echo ...` swallow once pnpm ships bulk-advisory-endpoint support ([pnpm issue tracker](https://github.com/pnpm/pnpm/issues)).
-- [ ] **Upstream catalyst PRs** — two PRs filed (2026-04-16): [#552 add typescript to devDependencies](https://github.com/localgod/catalyst/pull/552) and [#553 explicit rootDir in tsconfig](https://github.com/localgod/catalyst/pull/553). Once both merge upstream, remove the transient `typescript@~5.7` install in `scripts/fetch-catalyst.sh` and `Dockerfile` (the defense-in-depth is still useful for resilience but the primary path becomes `npm ci && npm run build`).
+- [ ] **Upstream catalyst PRs** — six PRs filed against `localgod/catalyst`, all open as of 2026-04-29:
+  - Build: [#552 add typescript to devDependencies](https://github.com/localgod/catalyst/pull/552), [#553 explicit rootDir in tsconfig](https://github.com/localgod/catalyst/pull/553).
+  - PUML parser: [#555 3-arg Rel + BiRel/Rel_Back/Rel_U/D/L/R](https://github.com/localgod/catalyst/pull/555), [#557 \*_Boundary types + paren-aware arg parsing](https://github.com/localgod/catalyst/pull/557).
+  - drawio output: [#556 emit diagram id + name](https://github.com/localgod/catalyst/pull/556), [#558 render Person/System_Ext/ContainerDb/Boundary + broaden layoutData2mx](https://github.com/localgod/catalyst/pull/558).
+
+  Until they merge upstream, `CATALYST_REF` tracks the fork. Once #552 + #553 merge, drop the transient `typescript@~5.7` install in `scripts/fetch-catalyst.sh` and `Dockerfile` (the defense-in-depth stays useful but the primary path becomes `npm ci && npm run build`). Once all six merge, flip the Renovate custom manager and `CATALYST_REF` source back to `localgod/catalyst`.
 
 ### Nice-to-have
 
