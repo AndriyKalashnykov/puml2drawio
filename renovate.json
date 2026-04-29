@@ -52,6 +52,11 @@
   },
   "packageRules": [
     {
+      "description": "Disable the one-time `pin` update type. We deliberately keep caret ranges in package.json (vitest et al.) and floating tags like node:24-alpine in the Dockerfile so Renovate's normal patch/minor/digest cadence handles bumps. The Makefile custom regex captures only currentValue (no currentDigest), so a pin attempt against those deps fails with `update failure` and blocks the whole composite pin-dependencies branch. pinDigest stays on so GitHub Actions still get SHA-pinned via helpers:pinGitHubActionDigests.",
+      "matchUpdateTypes": ["pin"],
+      "enabled": false
+    },
+    {
       "description": "Wait 3 days before automerging major updates",
       "matchUpdateTypes": ["major"],
       "minimumReleaseAge": "3 days"
