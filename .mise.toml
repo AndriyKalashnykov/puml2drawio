@@ -3,7 +3,7 @@ node = "24"
 # renovate: datasource=github-releases depName=hadolint/hadolint
 hadolint = "2.14.0"
 # renovate: datasource=github-releases depName=nektos/act
-act = "0.2.87"
+act = "0.2.88"
 # renovate: datasource=github-releases depName=aquasecurity/trivy
 trivy = "0.70.0"
 # renovate: datasource=github-releases depName=koalaman/shellcheck
