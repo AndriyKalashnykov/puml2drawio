@@ -135,19 +135,18 @@ Deferred work from initial scaffold (2026-04-16). Keep this list current — res
 
 ### Known gaps
 
-- [ ] **Upstream catalyst PRs** — six PRs filed against `localgod/catalyst`, all open as of 2026-05-14:
+- [ ] **Upstream catalyst PRs** (upstream-blocked) — six PRs filed against `localgod/catalyst`, all open as of 2026-05-14:
   - Build: [#552 add typescript to devDependencies](https://github.com/localgod/catalyst/pull/552), [#553 explicit rootDir in tsconfig](https://github.com/localgod/catalyst/pull/553).
   - PUML parser: [#555 3-arg Rel + BiRel/Rel_Back/Rel_U/D/L/R](https://github.com/localgod/catalyst/pull/555), [#557 \*_Boundary types + paren-aware arg parsing](https://github.com/localgod/catalyst/pull/557).
   - drawio output: [#556 emit diagram id + name](https://github.com/localgod/catalyst/pull/556), [#558 render Person/System_Ext/ContainerDb/Boundary + broaden layoutData2mx](https://github.com/localgod/catalyst/pull/558).
 
   Until they merge upstream, `CATALYST_REF` tracks the fork. Once #552 + #553 merge, drop the transient `typescript@~5.7` install in `scripts/fetch-catalyst.sh` and `Dockerfile` (the defense-in-depth stays useful but the primary path becomes `npm ci && npm run build`). Once all six merge, flip the Renovate custom manager and `CATALYST_REF` source back to `localgod/catalyst`.
 
-### Upgrade backlog
+- [ ] **Docker-image batch-mode is not e2e-asserted** (intentional design constraint — act incompatibility) — `make e2e` exercises stdin mode (act-friendly — no bind mounts), and `make image-sample` runs batch mode locally without asserting structure. The Docker batch path can't be exercised under act because bind mounts to host `$PWD` are unreliable inside nested containers. Risk of regression is low (the integration suite covers batch mode against the real catalyst lib in `test/runner.integration.test.mjs`, and the Docker entrypoint is a thin wrapper). **Trigger to close**: if batch-mode regressions ever ship to production, add a `make e2e-batch` target invoked from CI directly (bypassing `make ci-run`/act).
 
-- [ ] **Docker-image batch-mode is not e2e-asserted**: `make e2e` exercises stdin mode (act-friendly — no bind mounts), and `make image-sample` runs batch mode locally without asserting structure. The Docker batch path can't be exercised under act because bind mounts to host `$PWD` are unreliable inside nested containers. Risk of regression is low (the integration suite covers batch mode against the real catalyst lib in `test/runner.integration.test.mjs`, and the Docker entrypoint is a thin wrapper). If batch-mode regressions surface, add a `make e2e-batch` target invoked from CI directly (bypassing `make ci-run`/act).
-- [ ] **`engines.node` is open-ended**: `package.json` says `"node": ">=24"` and `.nvmrc`/`.mise.toml` pin major 24. When Node 25 ships, the engines field will accept it without forcing a synchronized bump of the version-manager files. Consider `">=24 <25"` if you want a hard floor, or accept drift and rely on `.mise.toml`/`.nvmrc` for the canonical version. Surfaced 2026-05-14 by `/upgrade-analysis`.
-- [ ] **No `engines.pnpm` bound**: `packageManager: pnpm@11.1.0` is enforced by corepack, but a manually-installed pnpm could be any major. Optional defense-in-depth: add `engines.pnpm: ">=11 <12"`. Surfaced 2026-05-14 by `/upgrade-analysis`.
-- [ ] **SBOM artifact not published**: `provenance: false` + `sbom: false` is correct for GHCR's "OS / Arch" tab rendering, but consumers asking "what's in this image?" currently only get the cosign signature. If demand surfaces, publish a separate SBOM via `anchore/sbom-action` as a release asset (not buildkit in-manifest). Surfaced 2026-05-14.
+- [ ] **`engines.node` is open-ended** (forward-looking audit — trigger: Node 25 GA release) — `package.json` says `"node": ">=24"` and `.nvmrc`/`.mise.toml` pin major 24. When Node 25 ships, the engines field will silently accept it without forcing a synchronized bump of the version-manager files. **Action when Node 25 lands**: decide whether to add `">=24 <25"` hard floor, or accept drift and rely on `.mise.toml`/`.nvmrc` as canonical. Surfaced 2026-05-14 by `/upgrade-analysis`.
+
+- [ ] **SBOM artifact not published** (forward-looking — trigger: consumer asks "what's in this image?") — `provenance: false` + `sbom: false` is correct for GHCR's "OS / Arch" tab rendering, but consumers currently only get the cosign signature. **Action when demand surfaces**: publish a separate SBOM via `anchore/sbom-action` as a release asset (not buildkit in-manifest, which would re-break the GHCR tab). Surfaced 2026-05-14.
 
 ### Nice-to-have
 
