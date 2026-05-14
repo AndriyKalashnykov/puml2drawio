@@ -57,6 +57,11 @@
       "minimumReleaseAge": "3 days"
     },
     {
+      "description": "Disable the one-time `pin` update type globally. Caret ranges in package.json (vitest, @vitest/coverage-v8) and floating Dockerfile tags (node:24-alpine) are intentional — normal patch/minor/digest updates already keep them current, and pinning to exact would freeze them. `pinDigest` stays on so GitHub Actions remain SHA-pinned via `helpers:pinGitHubActionDigests`. Complements the Makefile-tools `pinDigests: false` rule below (the rules are orthogonal: this one targets the `pin` update type for ranges; that one targets `pinDigests` for docker refs).",
+      "matchUpdateTypes": ["pin"],
+      "enabled": false
+    },
+    {
       "description": "Keep Makefile docker tool pins tag-only — `config:best-practices` transitively enables `docker:pinDigests` which would otherwise rewrite the Makefile constants to `tag@sha256:...` form, breaking the customManager regex (which expects a semver-shaped currentValue). Pinning by tag is acceptable here because each constant is also consumed via `docker pull`/`docker run` at build/lint time, which always resolves the latest digest for the tag.",
       "matchManagers": ["custom.regex"],
       "matchFileNames": ["Makefile"],
