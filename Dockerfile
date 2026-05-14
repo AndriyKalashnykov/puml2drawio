@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.24@sha256:87999aa3d42bdc6bea60565083ee17e86d1f3339802f543c0d03998580f9cb89
-ARG NODE_VERSION=24-alpine
+ARG NODE_VERSION=24-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f
 
 FROM node:${NODE_VERSION} AS catalyst-builder
 RUN apk add --no-cache git
