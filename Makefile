@@ -1,5 +1,9 @@
 .DEFAULT_GOAL := help
 SHELL         := /bin/bash
+# Make every recipe run with strict bash semantics: fail on first unset var
+# (-u), first error (-e), and first pipe failure (pipefail). Without this,
+# multi-line `&&` chains silently swallow errors in non-last commands.
+.SHELLFLAGS   := -eu -o pipefail -c
 
 APP_NAME      := puml2drawio
 CURRENTTAG    := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
@@ -12,14 +16,18 @@ CATALYST_REF  := $(shell tr -d '[:space:]' < CATALYST_REF 2>/dev/null)
 # hadolint, act, trivy, shellcheck and node are pinned in .mise.toml — one
 # source of truth for local dev (mise-activated shell) and CI (jdx/mise-action).
 # Only tools that mise cannot manage stay pinned in the Makefile.
+# Docker image, consumed via `docker run`.
 # renovate: datasource=docker depName=minlag/mermaid-cli
-MERMAID_CLI_VERSION := 11.15.0    # Docker image, consumed via `docker run`
+MERMAID_CLI_VERSION := 11.15.0
+# Docker image, consumed via `docker run`.
 # renovate: datasource=docker depName=plantuml/plantuml
-PLANTUML_VERSION    := 1.2026.3   # Docker image, consumed via `docker run`
+PLANTUML_VERSION    := 1.2026.3
+# Docker image tag (v-prefixed), consumed via `docker run`.
 # renovate: datasource=docker depName=rlespinasse/drawio-export
-DRAWIO_EXPORT_TAG   := v4.51.0    # Docker image tag (v-prefixed), consumed via `docker run`
+DRAWIO_EXPORT_TAG   := v4.51.0
+# Minimal container used by diagrams-png for chown.
 # renovate: datasource=docker depName=alpine
-ALPINE_VERSION      := 3.23.4     # Minimal container used by diagrams-png for chown
+ALPINE_VERSION      := 3.23.4
 
 # Docker coordinates
 DOCKER_IMAGE    := $(APP_NAME)
@@ -46,7 +54,7 @@ help:
 
 #deps: @ Install mise-managed tools (node, hadolint, act, trivy, shellcheck), pnpm and build vendored catalyst
 deps:
-	@if [ -z "$$CI" ] && ! command -v mise >/dev/null 2>&1; then \
+	@if [ -z "$${CI:-}" ] && ! command -v mise >/dev/null 2>&1; then \
 		echo "Installing mise (no root required, installs to ~/.local/bin)..."; \
 		curl -fsSL https://mise.run | sh; \
 		echo ""; \
@@ -114,7 +122,7 @@ integration-test: deps
 	@pnpm exec vitest run -c vitest.integration.config.mjs
 
 #action-test: @ Test GitHub Action entrypoint shim (scripts/action-entrypoint.sh)
-action-test:
+action-test: deps
 	@bash test/action-entrypoint.test.sh
 
 #lint: @ Lint JS syntax + Dockerfile + shell scripts
@@ -129,13 +137,9 @@ lint-docker: deps
 lint-shell: deps
 	@shellcheck scripts/*.sh
 
-#vulncheck: @ Scan pnpm dependencies for known CVEs (moderate+; informational)
+#vulncheck: @ Scan pnpm dependencies for known CVEs (moderate+, blocking)
 vulncheck: deps
-	@# pnpm 10.33 still queries npm's retired /-/npm/v1/security/audits endpoint
-	@# (npm migrated to a bulk advisory endpoint; pnpm hasn't caught up yet, see
-	@# https://github.com/pnpm/pnpm/issues ). Treat as informational — trivy-fs
-	@# below gates the build on real CVEs, secrets, and misconfigs.
-	@pnpm audit --audit-level=moderate || echo "note: pnpm audit endpoint returned 410 — trivy-fs is the real CVE gate"
+	@pnpm audit --audit-level=moderate
 
 #trivy-fs: @ Scan filesystem for CVEs, secrets, misconfigs (CRITICAL/HIGH) (mise-managed)
 trivy-fs: deps
@@ -158,12 +162,18 @@ mermaid-lint: require-docker
 		echo "No Mermaid blocks found — skipping."; \
 		exit 0; \
 	fi; \
+	IMAGE=minlag/mermaid-cli:$(MERMAID_CLI_VERSION); \
+	for attempt in 1 2 3; do \
+		if docker pull --quiet "$$IMAGE" >/dev/null 2>&1; then break; fi; \
+		[ "$$attempt" -eq 3 ] && { echo "Failed to pull $$IMAGE after 3 attempts"; exit 1; }; \
+		sleep $$((attempt * 5)); \
+	done; \
 	FAILED=0; \
 	for md in $$MD_FILES; do \
 		echo "Validating Mermaid blocks in $$md..."; \
 		LOG=$$(mktemp); \
-		if docker run --rm -v "$$PWD:/data" \
-			minlag/mermaid-cli:$(MERMAID_CLI_VERSION) \
+		if docker run --rm -v "$$PWD:/data:ro" \
+			"$$IMAGE" \
 			-i "/data/$$md" -o "/tmp/$$(basename $$md .md).svg" >"$$LOG" 2>&1; then \
 			echo "  ✓ All blocks rendered cleanly."; \
 		else \
@@ -240,7 +250,7 @@ diagrams-png: image-build
 
 #image-push: @ Tag and push image to $(DOCKER_REGISTRY)/$(DOCKER_REPO)
 image-push: image-build
-	@if [ -n "$$GH_ACCESS_TOKEN" ] && echo "$(DOCKER_REGISTRY)" | grep -q "ghcr.io"; then \
+	@if [ -n "$${GH_ACCESS_TOKEN:-}" ] && echo "$(DOCKER_REGISTRY)" | grep -q "ghcr.io"; then \
 		echo "$$GH_ACCESS_TOKEN" | docker login ghcr.io -u "$(GHCR_USER)" --password-stdin; \
 	fi
 	@docker tag $(DOCKER_IMAGE):$(DOCKER_TAG) $(DOCKER_REGISTRY)/$(DOCKER_REPO):$(DOCKER_TAG)
@@ -260,9 +270,14 @@ e2e: image-build
 	@out=$$(mktemp) && \
 		cat sample/example.puml | docker run --rm -i $(DOCKER_IMAGE):$(DOCKER_TAG) - > "$$out" && \
 		test -s "$$out" || { echo "FAIL: empty output"; rm -f "$$out"; exit 1; } && \
-		grep -q 'mxGraphModel' "$$out" || { echo "FAIL: output missing mxGraphModel"; rm -f "$$out"; exit 1; } && \
+		grep -q '<mxfile'      "$$out" || { echo "FAIL: missing <mxfile envelope"; rm -f "$$out"; exit 1; } && \
+		grep -q '<mxGraphModel' "$$out" || { echo "FAIL: missing <mxGraphModel"; rm -f "$$out"; exit 1; } && \
+		grep -q '<mxCell'      "$$out" || { echo "FAIL: no <mxCell — empty diagram"; rm -f "$$out"; exit 1; } && \
+		for label in User API Database; do \
+			grep -q "$$label" "$$out" || { echo "FAIL: C4 label '$$label' missing — sample/example.puml content didn't survive conversion"; rm -f "$$out"; exit 1; }; \
+		done && \
 		mv "$$out" build/sample.drawio
-	@echo "E2E passed: build/sample.drawio ($$(wc -c < build/sample.drawio) bytes) contains mxGraphModel"
+	@echo "E2E passed: build/sample.drawio ($$(wc -c < build/sample.drawio) bytes) carries <mxfile + <mxGraphModel + <mxCell and all three sample C4 labels (User, API, Database)"
 
 #ci: @ Run full local CI pipeline (static checks + tests + integration + e2e)
 ci: deps static-check test integration-test action-test e2e
@@ -279,8 +294,8 @@ ci-run: deps
 		--artifact-server-path "$$ARTIFACT_PATH"
 
 #renovate-validate: @ Validate Renovate configuration via npx
-renovate-validate:
-	@if [ -n "$$GH_ACCESS_TOKEN" ]; then \
+renovate-validate: deps
+	@if [ -n "$${GH_ACCESS_TOKEN:-}" ]; then \
 		GITHUB_COM_TOKEN=$$GH_ACCESS_TOKEN npx --yes renovate --platform=local; \
 	else \
 		echo "Warning: GH_ACCESS_TOKEN not set, some dependency lookups may fail"; \

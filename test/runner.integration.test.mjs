@@ -215,6 +215,56 @@ describeIfReady('runCli integration — full pipeline through catalyst', () => {
     expect(stderr).toContain('error:')
   })
 
+  test('batch accumulates errors and exits 1 when a write fails (no --fail-fast)', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'puml2drawio-batch-err-'))
+    try {
+      const inputDir = path.join(dir, 'in')
+      const outputDir = path.join(dir, 'out')
+      await fsp.mkdir(inputDir, { recursive: true })
+      await fsp.copyFile(SAMPLE_PUML, path.join(inputDir, 'a.puml'))
+      await fsp.copyFile(SAMPLE_PUML, path.join(inputDir, 'b.puml'))
+      await fsp.copyFile(SAMPLE_PUML, path.join(inputDir, 'c.puml'))
+      // Pre-create b.drawio as a DIRECTORY at the output target — writeFile
+      // will fail with EISDIR, deterministically without touching file modes.
+      await fsp.mkdir(path.join(outputDir, 'b.drawio'), { recursive: true })
+
+      const { code, stderr } = await run([inputDir, '-o', outputDir, '--quiet'])
+      expect(code).toBe(1)
+      expect(stderr).toContain('failed:')
+      expect(stderr).toContain('b.puml')
+      // a and c still converted despite b failing.
+      expect(await fsp.readFile(path.join(outputDir, 'a.drawio'), 'utf-8')).toContain('<mxGraphModel')
+      expect(await fsp.readFile(path.join(outputDir, 'c.drawio'), 'utf-8')).toContain('<mxGraphModel')
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('--fail-fast stops batch on first error (no later files attempted)', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'puml2drawio-batch-ff-'))
+    try {
+      const inputDir = path.join(dir, 'in')
+      const outputDir = path.join(dir, 'out')
+      await fsp.mkdir(inputDir, { recursive: true })
+      // Files are processed in sorted order — `a.puml` fails first, `b.puml`
+      // and `c.puml` must NOT be attempted under --fail-fast.
+      await fsp.copyFile(SAMPLE_PUML, path.join(inputDir, 'a.puml'))
+      await fsp.copyFile(SAMPLE_PUML, path.join(inputDir, 'b.puml'))
+      await fsp.copyFile(SAMPLE_PUML, path.join(inputDir, 'c.puml'))
+      await fsp.mkdir(path.join(outputDir, 'a.drawio'), { recursive: true })
+
+      const { code, stderr } = await run([inputDir, '-o', outputDir, '--quiet', '--fail-fast'])
+      expect(code).toBe(1)
+      expect(stderr).toContain('failed:')
+      expect(stderr).toContain('a.puml')
+      // b.drawio and c.drawio must not have been written.
+      await expect(fsp.access(path.join(outputDir, 'b.drawio'))).rejects.toThrow()
+      await expect(fsp.access(path.join(outputDir, 'c.drawio'))).rejects.toThrow()
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   test('empty directory fails with descriptive error (exit 1)', async () => {
     const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'puml2drawio-empty-'))
     const outDir = path.join(dir, 'out')
