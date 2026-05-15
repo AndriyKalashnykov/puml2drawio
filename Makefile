@@ -192,8 +192,28 @@ mermaid-lint: require-docker
 	fi
 
 #static-check: @ Run all static quality checks
-static-check: lint vulncheck trivy-fs mermaid-lint
+static-check: lint vulncheck trivy-fs mermaid-lint examples-check
 	@echo "Static check passed."
+
+#examples-check: @ Fail if the committed README example drifted from the converter (run make examples-png to refresh)
+# Drift guard for docs/examples/. node src/cli.mjs (vendored catalyst) is
+# byte-deterministic for a fixed input — verified — so a plain cmp is safe
+# with no false positives and no Docker. A CATALYST_REF bump (or any
+# converter change) that alters output fails this until `make examples-png`
+# is re-run and docs/examples/ committed. The .drawio is the canonical drift
+# signal; the committed PNGs are only ever produced from it by examples-png,
+# so guarding the .drawio transitively guards the rendered pair. PNGs are
+# NOT byte-checked (plantuml/drawio-export rendering is non-deterministic).
+examples-check: deps
+	@tmp=$$(mktemp); \
+	node src/cli.mjs sample/example.puml -o "$$tmp"; \
+	if cmp -s "$$tmp" docs/examples/example.drawio; then \
+		rm -f "$$tmp"; echo "examples-check: docs/examples/example.drawio is current"; \
+	else \
+		rm -f "$$tmp"; \
+		echo "FAIL: docs/examples/example.drawio is stale vs the converter — run 'make examples-png' and commit docs/examples/"; \
+		exit 1; \
+	fi
 
 #image-build: @ Build Docker image (pinned CATALYST_REF)
 # Canonical source is AndriyKalashnykov/catalyst; it is the Dockerfile ARG
@@ -418,5 +438,5 @@ release-floating-tags:
 .PHONY: help deps deps-check require-docker fetch-catalyst clean \
 	build test test-coverage integration-test action-test \
 	lint lint-docker lint-shell vulncheck trivy-fs mermaid-lint static-check \
-	image-build image-run image-sample image-push image-stop puml-png drawio-png drawio-layout diagrams-png convert-png examples-png e2e e2e-batch e2e-convert-png \
+	image-build image-run image-sample image-push image-stop puml-png drawio-png drawio-layout diagrams-png convert-png examples-png examples-check e2e e2e-batch e2e-convert-png \
 	ci ci-run renovate-validate release release-floating-tags

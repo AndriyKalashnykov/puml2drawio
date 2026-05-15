@@ -256,11 +256,11 @@ Options:
   -o, --output             Output file (single input) or directory (batch/glob)
       --output-ext         Output extension; batch/glob, and single-file when -o is a directory (default: .drawio)
       --layout-direction   Layout direction: TB | BT | LR | RL (default: TB)
-      --nodesep            Node separation in px (default: 50)
+      --nodesep            Node separation in px (default: 100)
       --edgesep            Edge separation in px (default: 10)
-      --ranksep            Rank separation in px (default: 50)
-      --marginx            X margin in px (default: 20)
-      --marginy            Y margin in px (default: 20)
+      --ranksep            Rank separation in px (default: 120)
+      --marginx            X margin in px (default: 40)
+      --marginy            Y margin in px (default: 40)
       --fail-fast          Stop on first error in batch/glob mode
       --summary            Emit JSON summary (batch/glob: stdout; single/stdin: stderr)
   -q, --quiet              Suppress per-file progress

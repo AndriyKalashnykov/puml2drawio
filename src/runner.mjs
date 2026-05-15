@@ -15,7 +15,7 @@ export function buildParser(argv) {
     .usage('$0 <input> [options]\n\nConvert PlantUML C4 diagrams to draw.io XML.')
     .command('$0 <input>', 'Convert input', (y) =>
       y.positional('input', {
-        describe: 'Input .puml file, directory (recurses), or "-" for stdin',
+        describe: 'Input .puml file, directory (recurses), glob pattern, or "-" for stdin',
         type: 'string'
       })
     )
