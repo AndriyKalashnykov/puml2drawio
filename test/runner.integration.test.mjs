@@ -450,4 +450,57 @@ describeIfReady('runCli integration — full pipeline through catalyst', () => {
     expect(summary.converted).toBe(1)
     expect(summary.files[0].input).toBe('-')
   })
+
+  test('leading-magic glob (no static prefix) → globBaseDir "." anchors output at cwd', async () => {
+    // `*.puml` has a metachar in its FIRST segment → globBaseDir returns '.',
+    // so deriveOutputPath roots the tree at the process cwd. Exercise that
+    // branch by chdir-ing into a tmp dir and using a cwd-relative glob.
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'puml2drawio-globdot-'))
+    const cwd0 = process.cwd()
+    try {
+      await fsp.copyFile(SAMPLE_PUML, path.join(dir, 'top.puml'))
+      process.chdir(dir)
+      const { code } = await run(['*.puml', '-o', 'out'])
+      expect(code).toBe(0)
+      // baseDir='.' → rel path 'top.puml' → out/top.drawio
+      expect(await fsp.readFile(path.join(dir, 'out', 'top.drawio'), 'utf-8')).toContain('<mxGraphModel')
+    } finally {
+      process.chdir(cwd0)
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('single-file -o to a nonexistent nested path writes verbatim (isDirectory catch branch, no ext rewrite)', async () => {
+    // isDirectory(output) stat-throws on the not-yet-created path → false →
+    // runSingle treats -o as a file path (no --output-ext derivation);
+    // convertFile mkdirs the parents. Asserts the catch branch + verbatim.
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'puml2drawio-single-nested-'))
+    try {
+      const input = path.join(dir, 'in.puml')
+      const out = path.join(dir, 'a', 'b', 'out.custom')
+      await fsp.copyFile(SAMPLE_PUML, input)
+      const { code } = await run([input, '-o', out, '--output-ext', '.xml'])
+      expect(code).toBe(0)
+      // Written at the verbatim nested path; --output-ext NOT applied.
+      expect(await fsp.readFile(out, 'utf-8')).toContain('<mxGraphModel')
+      await expect(fsp.access(path.join(dir, 'a', 'b', 'in.xml'))).rejects.toThrow()
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('glob yields entries but none are .puml → exit 1 (post-filter empty branch)', async () => {
+    // Distinct from the no-match case: fs.glob DOES return files, but the
+    // .puml filter empties the list → same descriptive error, different path.
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'puml2drawio-glob-nonpuml-'))
+    try {
+      await fsp.writeFile(path.join(dir, 'a.txt'), 'x')
+      await fsp.writeFile(path.join(dir, 'b.md'), '# y')
+      const { code, stderr } = await run([`${dir}/*.*`, '-o', path.join(dir, 'out')])
+      expect(code).toBe(1)
+      expect(stderr).toContain('No .puml files matched glob')
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
 })
