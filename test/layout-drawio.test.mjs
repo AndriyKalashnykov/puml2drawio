@@ -129,6 +129,32 @@ describe('layoutDrawio', () => {
         expect(xml).toMatch(/id="only"/)
     })
 
+    test('handles a vertex object with no <mxGeometry> child (readGeom default + writeGeom no-op branches)', async () => {
+        // `host` has a real geometry; `api` (its child) has NO <mxGeometry>.
+        // readGeom must fall back to its {0,0,160,80} default for `api`, and
+        // writeGeom must early-return for it (no geometry node to rewrite),
+        // without throwing. Output stays a well-formed mxfile with both shapes.
+        const noGeom = `<?xml version="1.0" encoding="UTF-8"?>
+<mxfile><diagram id="d" name="Page-1"><mxGraphModel>
+  <root>
+    <mxCell id="0"/>
+    <mxCell id="1" parent="0"/>
+    <object c4Name="Host" id="host"><mxCell style="container=1" parent="1" vertex="1">
+      <mxGeometry as="geometry" x="0" y="0" width="300" height="200"/>
+    </mxCell></object>
+    <object c4Name="API" id="api"><mxCell style="rounded=1" parent="host" vertex="1"/></object>
+  </root>
+</mxGraphModel></diagram></mxfile>`
+        const { xml } = await layoutDrawio(noGeom)
+        expect(xml).toMatch(/<mxfile/)
+        expect(xml).toMatch(/id="host"/)
+        expect(xml).toMatch(/id="api"/)
+        // `host` had a geometry → writeGeom rewrote it (moved off 0,0 or kept
+        // a valid box); `api` had none → still no <mxGeometry> emitted for it.
+        expect(geomFor(xml, 'host')).not.toBeNull()
+        expect(geomFor(xml, 'api')).toBeNull()
+    })
+
     test('default direction is AUTO and returns the chosen direction', async () => {
         const { direction } = await layoutDrawio(input)
         // Tiny fixture: 1 boundary with 1 child → RIGHT.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Clone AndriyKalashnykov/catalyst (the maintained, canonical fork — upstream
-# localgod/catalyst is inactive) at the ref pinned in CATALYST_REF, build it,
-# and leave dist/ + runtime node_modules under vendor/catalyst/.
+# Clone AndriyKalashnykov/catalyst (the canonical catalyst repo) at the ref
+# pinned in CATALYST_REF, build it, and leave dist/ + runtime node_modules
+# under vendor/catalyst/.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,8 +46,9 @@ echo "building catalyst at ${REF}"
   if [ ! -x node_modules/.bin/tsc ]; then
     npm install --no-save --silent 'typescript@~5.7'
   fi
-  # Upstream catalyst has pre-existing type errors (missing `dagre` namespace,
-  # implicit any on node/edge params). TypeScript still emits dist/ by default
+  # catalyst's tsc may exit non-zero on pre-existing upstream type errors
+  # (its tsconfig targets moduleResolution=node10 + implicit any on some
+  # node/edge params). TypeScript still emits dist/ by default
   # (noEmitOnError=false), so we accept tsc's non-zero exit and verify the
   # artefact was produced afterwards. Capture tsc output so it doesn't reach
   # the surrounding shell (the GitHub Actions tsc problem matcher would

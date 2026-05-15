@@ -225,6 +225,12 @@ jobs:
       - name: Run end-to-end batch test
         run: make e2e-batch
 
+      # Guards the user-facing convert-png feature (drawio + PNG side-by-side,
+      # host-owned chown-back). Direct on the runner — drawio-export is an
+      # Electron image; not act-friendly.
+      - name: Run end-to-end convert-png test
+        run: make e2e-convert-png
+
   docker:
     needs: [changes, static-check, build, test]
     if: needs.changes.outputs.code == 'true'
@@ -241,10 +247,9 @@ jobs:
         id: catalyst
         run: echo "ref=$(tr -d '[:space:]' < CATALYST_REF)" >> "$GITHUB_OUTPUT"
 
-      # CATALYST_REPO mirrors the Makefile overrides in fetch-catalyst and
-      # image-build — pins to AndriyKalashnykov/catalyst (fork) while upstream
-      # PRs for https://github.com/localgod/catalyst/issues/554 are pending.
-      # Revert along with the Makefile overrides once any upstream PR merges.
+      # CATALYST_REPO mirrors the fetch-catalyst.sh / Dockerfile default —
+      # AndriyKalashnykov/catalyst is the canonical catalyst repo. Passed
+      # explicitly so the docker build arg matches the host-side clone.
       - name: Set CATALYST_REPO
         id: catalyst_repo
         run: echo "repo=https://github.com/AndriyKalashnykov/catalyst.git" >> "$GITHUB_OUTPUT"

@@ -5,13 +5,13 @@
 
 # puml2drawio
 
-Dockerized CLI that converts PlantUML C4 diagrams (`.puml`) to draw.io XML (`.drawio`). Designed to drop into CI pipelines that commit PlantUML sources and want draw.io output rendered or committed back downstream. Wraps the [localgod/catalyst](https://github.com/localgod/catalyst) JavaScript library — currently pinned to a fork ([AndriyKalashnykov/catalyst](https://github.com/AndriyKalashnykov/catalyst)) that carries unmerged upstream fixes (`localgod/catalyst#552`, `#553`, `#555`–`#558`); Renovate tracks the fork's `main`. Flips back to upstream once those PRs merge.
+Dockerized CLI that converts PlantUML C4 diagrams (`.puml`) to draw.io XML (`.drawio`). Designed to drop into CI pipelines that commit PlantUML sources and want draw.io output rendered or committed back downstream. Wraps the [catalyst](https://github.com/AndriyKalashnykov/catalyst) JavaScript library, vendored at a pinned release tag (`CATALYST_REF`); Renovate tracks new catalyst tags via the `github-tags` datasource.
 
 ```mermaid
 flowchart LR
   puml[".puml files<br/>(PlantUML C4)"] -->|stdin / file / dir| cli["puml2drawio CLI<br/>(yargs)"]
   cli --> conv["Catalyst<br/>(vendored)"]
-  conv -->|dagre layout| drawio[".drawio XML"]
+  conv -->|ELK layout| drawio[".drawio XML"]
   drawio -->|stdout / file / dir| out[("CI artefact /<br/>commit-back")]
 
   subgraph "Docker image: ghcr.io/andriykalashnykov/puml2drawio"
@@ -26,14 +26,14 @@ Data-flow view of a conversion: PlantUML source enters via stdin, a file path, o
 |-----------|------------|-----------|
 | Language | Node.js 24 (ES modules) | catalyst is JS — same runtime keeps the wrapper a thin shim, no FFI |
 | CLI parser | yargs | layered flags + env-var precedence + auto help/version |
-| Conversion engine | [AndriyKalashnykov/catalyst](https://github.com/AndriyKalashnykov/catalyst) (maintained fork; vendored at a pinned release tag) | only mature OSS PlantUML-C4 → drawio renderer; pinning by tag isolates the wrapper from upstream breakage |
-| Layout engine | [elkjs](https://github.com/kieler/elkjs) (post-processor) | dense container diagrams need more than catalyst's built-in dagre — ELK's `layered` algorithm handles nested boundaries |
+| Conversion engine | [catalyst](https://github.com/AndriyKalashnykov/catalyst) (vendored at a pinned release tag) | only mature OSS PlantUML-C4 → drawio renderer; pinning by tag isolates the wrapper from upstream breakage |
+| Layout engine | [elkjs](https://github.com/kieler/elkjs) (post-processor) | re-runs ELK's `layered` algorithm with C4-tuned spacing + nested-boundary hierarchy for dense container diagrams |
 | XML parsing | [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser) | parses & re-emits drawio XML in the elkjs re-layout post-processor (`src/layout-drawio.mjs`) |
 | Container base | `node:24-alpine` (non-root `app` user, npm/npx/corepack/yarn stripped) | minimal attack surface; stripped tools eliminate HIGH CVEs in their bundled `minimatch`/`tar` |
 | Registry | GitHub Container Registry (GHCR), multi-arch `linux/amd64` + `linux/arm64` (published on `v*` tag pushes only) | free for OSS, native OIDC for cosign |
 | Static analysis | [hadolint](https://github.com/hadolint/hadolint) (Dockerfile) + [shellcheck](https://www.shellcheck.net/) (scripts) | catches Dockerfile + shell anti-patterns in `make static-check` |
 | CVE scans | [Trivy](https://trivy.dev/) — filesystem (`trivy fs`) + image (`aquasecurity/trivy-action`) | CRITICAL/HIGH blocking; image scan runs before multi-arch publish |
-| Diagram lint | [`minlag/mermaid-cli`](https://github.com/mermaid-js/mermaid-cli) (Docker) | validates README + CLAUDE.md Mermaid blocks render before commit; broken diagrams silently break GitHub homepage rendering |
+| Diagram lint | [`minlag/mermaid-cli`](https://github.com/mermaid-js/mermaid-cli) (Docker) | validates any Mermaid blocks in README.md / CLAUDE.md render before commit; broken diagrams silently break GitHub homepage rendering |
 | Signing | [cosign](https://docs.sigstore.dev/cosign/overview/) keyless OIDC on tag pushes | supply-chain signature without long-lived keys; replaces buildkit in-manifest attestations (which break GHCR's "OS / Arch" tab) |
 | Tests | [Vitest](https://vitest.dev/) (unit + integration) + Docker e2e + shell-driven Action shim test | three-layer pyramid; 80% v8 coverage threshold |
 | Local CI runner | [act](https://github.com/nektos/act) (`make ci-run`) | exercise the workflow against the local checkout before push; pinned via mise |
@@ -128,7 +128,7 @@ Produces side-by-side pairs under `build/png/`:
 | `<stem>.puml.png` | `sample/<stem>.puml` | `plantuml/plantuml` |
 | `<stem>.drawio.png` | `build/<stem>.drawio` (catalyst + ELK) | `rlespinasse/drawio-export` |
 
-The target pipes every `sample/*.puml` through four stages: plantuml-rendered PNG (the reference) → catalyst conversion to `.drawio` → ELK re-layout (auto-direction, see [Diagram Rendering & Layout](#diagram-rendering--layout)) → drawio-export to PNG. Skip the re-layout stage with `SKIP_DRAWIO_LAYOUT=1 make diagrams-png` if you want catalyst's raw dagre output.
+The target pipes every `sample/*.puml` through four stages: plantuml-rendered PNG (the reference) → catalyst conversion to `.drawio` → ELK re-layout (auto-direction, see [Diagram Rendering & Layout](#diagram-rendering--layout)) → drawio-export to PNG. Skip the re-layout stage with `SKIP_DRAWIO_LAYOUT=1 make diagrams-png` if you want catalyst's raw (un-re-laid-out) output.
 
 ### Step-by-step equivalent
 
@@ -179,7 +179,7 @@ Behind the scenes, the Action runs the published GHCR image (`docker://ghcr.io/a
 | `input` | yes | — | `.puml` file, directory (recursed), or `-` for stdin |
 | `output` | no | — | Output file (single input) or directory (batch). Required when `input` is a directory |
 | `output-ext` | no | `.drawio` | Output file extension used in batch mode |
-| `layout-direction` | no | (catalyst default) | Dagre direction: `TB` \| `BT` \| `LR` \| `RL` |
+| `layout-direction` | no | (catalyst default) | Layout direction: `TB` \| `BT` \| `LR` \| `RL` |
 | `nodesep` | no | catalyst default | Node separation in px |
 | `edgesep` | no | catalyst default | Edge separation in px |
 | `ranksep` | no | catalyst default | Rank separation in px |
@@ -220,9 +220,9 @@ First run installs mise to `~/.local/bin` and exits, asking for shell activation
 
 ## Architecture
 
-The project is a thin wrapper around catalyst — the wrapper itself is not a fork. `CATALYST_REF` pins a release **tag** of the maintained fork [`AndriyKalashnykov/catalyst`](https://github.com/AndriyKalashnykov/catalyst) (upstream `localgod/catalyst` is inactive). Renovate tracks the fork's tags via the `github-tags` datasource.
+The project is a thin wrapper around catalyst — the wrapper's own code is not catalyst. `CATALYST_REF` pins a release **tag** of [`AndriyKalashnykov/catalyst`](https://github.com/AndriyKalashnykov/catalyst), the canonical catalyst repo. Renovate tracks new catalyst tags via the `github-tags` datasource.
 
-- **`CATALYST_REF`** — file holding the pinned release tag (e.g. `v1.3.0`) of the maintained fork. Renovate's `customManagers` rule extracts it via `github-tags`; the per-package rule disables automerge for catalyst bumps because they can be API-affecting.
+- **`CATALYST_REF`** — file holding the pinned `AndriyKalashnykov/catalyst` release tag (e.g. `v1.3.0`). Renovate's `customManagers` rule extracts it via `github-tags`; the per-package rule disables automerge for catalyst bumps because they can be API-affecting.
 - **`scripts/fetch-catalyst.sh`** — clones the pinned ref into `vendor/catalyst/`, runs `npm ci`, transiently installs `typescript@~5.7` when `tsc` isn't already present (upstream catalyst's build script is `tsc` but typescript isn't in its devDependencies), runs `npm run build`, then **wipes `node_modules/` and reinstalls with `--omit=dev --ignore-scripts`** (`npm prune` leaves transitive devDep trees behind on nested deps, shipping HIGH CVEs into the image). Idempotent; skipped when `vendor/catalyst/` already matches `CATALYST_REF` and has `dist/`.
 - **`src/runner.mjs`** — yargs-based dispatch. Three modes: stdin (`-`), single file, directory (recursed for `*.puml`). In directory mode, `-o` is required; output mirrors the input tree.
 - **`src/options.mjs`** — pure option resolution, three-tier precedence: flag → env var → default. Returns `Object.freeze(...)`.
@@ -241,7 +241,7 @@ Positional:
 Options:
   -o, --output             Output file (single input) or directory (batch)
       --output-ext         Output extension in batch mode (default: .drawio)
-      --layout-direction   Dagre direction: TB | BT | LR | RL (default: TB)
+      --layout-direction   Layout direction: TB | BT | LR | RL (default: TB)
       --nodesep            Node separation in px (default: 50)
       --edgesep            Edge separation in px (default: 10)
       --ranksep            Rank separation in px (default: 50)
@@ -290,7 +290,7 @@ Run `make help` to see every target.
 | `make drawio-png` | Render drawio → PNG via `rlespinasse/drawio-export` (`INPUT=<file\|dir>` `OUTPUT_DIR=<dir>`; defaults `build` → `build/png/*.drawio.png`) |
 | `make diagrams-png` | Side-by-side: render every `sample/*.puml` twice (source via plantuml, catalyst-output via drawio-export) for visual diff |
 | `make convert-png` | Convert PUML → drawio **and** render PNG side-by-side in the **same** folder (`INPUT=<dir>` `OUTPUT_DIR=<dir>`; defaults `sample` → `build`, producing `<stem>.drawio` + `<stem>.drawio.png`) |
-| `make drawio-layout INPUT=<file> [OUTPUT=<file>] [DIRECTION=…]` | Re-layout a drawio file via [elkjs](https://github.com/kieler/elkjs). Handles dense diagrams better than catalyst's built-in dagre — use when the auto-layout is cramped. Default output: overwrite in-place. `DIRECTION=` is `AUTO` / `DOWN` / `UP` / `LEFT` / `RIGHT`; `AUTO` (default) picks per diagram — see below |
+| `make drawio-layout INPUT=<file> [OUTPUT=<file>] [DIRECTION=…]` | Re-layout a drawio file via [elkjs](https://github.com/kieler/elkjs). Handles dense diagrams better than catalyst's built-in layout — use when the auto-layout is cramped. Default output: overwrite in-place. `DIRECTION=` is `AUTO` / `DOWN` / `UP` / `LEFT` / `RIGHT`; `AUTO` (default) picks per diagram — see below |
 
 **`make drawio-layout` — direction selection**
 
@@ -333,6 +333,7 @@ The effective direction is printed on stderr so logs show which pick was used (`
 | `make action-test` | Shell test for `scripts/action-entrypoint.sh` (INPUT_* → CLI arg mapping) |
 | `make e2e` | End-to-end (stdin mode): convert `sample/example.puml` via built Docker image, assert the output carries `<mxfile` + `<mxGraphModel` + `<mxCell` **and** all three C4 labels (User, API, Database); minutes on first build |
 | `make e2e-batch` | End-to-end (batch/bind-mount mode): convert `sample/` via the built image with `-v $PWD`, assert each `.drawio` carries `<mxGraphModel`, is host-owned (non-root UID write), and freshly written |
+| `make e2e-convert-png` | End-to-end for `convert-png`: assert `.drawio` **and** valid `.drawio.png` land side-by-side, host-owned, fresh, with correct PNG magic bytes |
 | `make lint` | `node --check` JS + hadolint (Dockerfile) + shellcheck (scripts) |
 | `make lint-docker` | Hadolint only |
 | `make lint-shell` | Shellcheck on `scripts/*.sh` |

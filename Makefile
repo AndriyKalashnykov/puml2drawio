@@ -8,7 +8,7 @@ SHELL         := /bin/bash
 APP_NAME      := puml2drawio
 CURRENTTAG    := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 
-# Source of truth: .nvmrc (Node major) and CATALYST_REF (pinned upstream SHA)
+# Source of truth: .nvmrc (Node major) and CATALYST_REF (pinned catalyst release tag, e.g. v1.3.0)
 NODE_VERSION  := $(shell cat .nvmrc 2>/dev/null || echo 24)
 CATALYST_REF  := $(shell tr -d '[:space:]' < CATALYST_REF 2>/dev/null)
 
@@ -92,9 +92,8 @@ require-docker:
 	@command -v docker >/dev/null 2>&1 || { echo "Error: docker required."; exit 1; }
 
 #fetch-catalyst: @ Clone and build catalyst at pinned CATALYST_REF
-# Canonical source is AndriyKalashnykov/catalyst (the maintained fork; upstream
-# localgod/catalyst is inactive — localgod#570 closed). That is now the default
-# in scripts/fetch-catalyst.sh + Dockerfile, so no CATALYST_REPO override here.
+# Canonical source is AndriyKalashnykov/catalyst. That is the default in
+# scripts/fetch-catalyst.sh + Dockerfile, so no CATALYST_REPO override here.
 fetch-catalyst:
 	@bash scripts/fetch-catalyst.sh
 
@@ -128,6 +127,10 @@ action-test: deps
 #lint: @ Lint JS syntax + Dockerfile + shell scripts
 lint: deps lint-docker lint-shell
 	@find src test -name '*.mjs' -print0 | xargs -0 -n1 node --check
+	@# Guard: shell scripts must be executable. The Write tool creates files
+	@# 0644; a 100644 .sh that CI invokes as ./script fails with exit 126.
+	@NONEXEC=$$(find scripts test -name '*.sh' -not -perm -u+x 2>/dev/null); \
+		[ -z "$$NONEXEC" ] || { echo "Error: non-executable shell scripts:"; echo "$$NONEXEC"; exit 1; }
 
 #lint-docker: @ Lint Dockerfile with hadolint (mise-managed)
 lint-docker: deps
@@ -193,8 +196,8 @@ static-check: lint vulncheck trivy-fs mermaid-lint
 	@echo "Static check passed."
 
 #image-build: @ Build Docker image (pinned CATALYST_REF)
-# Canonical source is the maintained fork (upstream localgod/catalyst inactive);
-# it is the Dockerfile ARG CATALYST_REPO default, so no --build-arg override.
+# Canonical source is AndriyKalashnykov/catalyst; it is the Dockerfile ARG
+# CATALYST_REPO default, so no --build-arg override.
 # Intentionally NOT prerequisite on `deps`: the Dockerfile's catalyst-builder
 # stage clones + builds catalyst from CATALYST_REF itself, so the host's
 # vendor/ (produced by `make deps` → fetch-catalyst) is not needed to build
@@ -321,6 +324,26 @@ e2e-batch: image-build
 	done; \
 	echo "E2E batch passed: $$count .drawio in build/e2e-batch/ — all host-owned, fresh, carry <mxGraphModel"
 
+#e2e-convert-png: @ E2E test for convert-png — assert .drawio AND valid .png land side-by-side, host-owned
+# Guards the user-facing convert-png feature: a drawio-export image bump or
+# the alpine chown-back regression would otherwise ship silently. Direct on
+# the CI runner (Docker-in-Docker), NOT under act.
+e2e-convert-png: image-build
+	@rm -rf build/e2e-png && mkdir -p build/e2e-png
+	@before=$$(date +%s); sleep 1; \
+	$(MAKE) --no-print-directory convert-png INPUT=sample OUTPUT_DIR=build/e2e-png >/dev/null; \
+	d=$$(find build/e2e-png -name '*.drawio' | wc -l); \
+	p=$$(find build/e2e-png -name '*.drawio.png' | wc -l); \
+	[ "$$d" -ge 1 ] || { echo "FAIL: convert-png produced no .drawio"; exit 1; }; \
+	[ "$$p" -ge 1 ] || { echo "FAIL: convert-png produced no .drawio.png"; exit 1; }; \
+	for f in build/e2e-png/*.drawio.png; do \
+		owner=$$(stat -c '%u' "$$f"); \
+		[ "$$owner" = "$$(id -u)" ] || { echo "FAIL: $$f not host-owned (uid $$owner vs $$(id -u)) — chown-back regression"; exit 1; }; \
+		[ "$$(stat -c '%Y' "$$f")" -ge "$$before" ] || { echo "FAIL: $$f stale"; exit 1; }; \
+		printf '\x89PNG\r\n\x1a\n' | cmp -s -n 8 - "$$f" || { echo "FAIL: $$f is not a valid PNG (bad magic bytes)"; exit 1; }; \
+	done; \
+	echo "E2E convert-png passed: $$d .drawio + $$p .drawio.png in build/e2e-png/ — host-owned, fresh, valid PNG signature"
+
 #ci: @ Run full local CI pipeline (static checks + tests + integration + e2e)
 ci: deps static-check test integration-test action-test e2e
 	@echo "Local CI pipeline passed."
@@ -372,5 +395,5 @@ release-floating-tags:
 .PHONY: help deps deps-check require-docker fetch-catalyst clean \
 	build test test-coverage integration-test action-test \
 	lint lint-docker lint-shell vulncheck trivy-fs mermaid-lint static-check \
-	image-build image-run image-sample image-push image-stop puml-png drawio-png drawio-layout diagrams-png convert-png e2e e2e-batch \
+	image-build image-run image-sample image-push image-stop puml-png drawio-png drawio-layout diagrams-png convert-png e2e e2e-batch e2e-convert-png \
 	ci ci-run renovate-validate release release-floating-tags

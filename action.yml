@@ -1,5 +1,5 @@
 name: 'puml2drawio'
-description: 'Convert PlantUML C4 diagrams to draw.io XML (wraps localgod/catalyst).'
+description: 'Convert PlantUML C4 diagrams to draw.io XML (wraps the catalyst library).'
 author: 'Andriy Kalashnykov'
 branding:
   icon: 'git-merge'
@@ -17,7 +17,7 @@ inputs:
     required: false
     default: '.drawio'
   layout-direction:
-    description: 'Dagre layout direction: TB | BT | LR | RL'
+    description: 'Layout direction: TB | BT | LR | RL'
     required: false
   nodesep:
     description: 'Node separation (px)'
