@@ -7,4 +7,5 @@ build/
 .DS_Store
 .idea/
 .vscode/
+.claude/
 .mise.local.toml
