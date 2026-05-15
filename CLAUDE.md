@@ -143,6 +143,8 @@ Deferred work. Keep this list current — resolve items or justify why they're s
 
 - [ ] **SBOM artifact not published** (forward-looking — trigger: consumer asks "what's in this image?") — `provenance: false` + `sbom: false` is correct for GHCR's "OS / Arch" tab rendering, but consumers currently only get the cosign signature. **Action when demand surfaces**: publish a separate SBOM via `anchore/sbom-action` as a release asset (not buildkit in-manifest, which would re-break the GHCR tab). Surfaced 2026-05-14.
 
+- [ ] **PlantUML/drawio container litters a `?/` font-cache dir in the repo root** (cosmetic; never committed — always untracked, so it ships nothing wrong) — `scripts/puml-to-png.sh` and `scripts/drawio-to-png.sh` run `docker run plantuml/plantuml` / `rlespinasse/drawio-export` without setting `HOME`; the containerized JVM/fontconfig writes `~/.java/fonts/…` which, with `HOME` unset, resolves to a literal `?` directory via the `-v "$PWD:/data"` bind mount. Recurs on every `make mermaid-lint` / `puml-png` / `drawio-png` / `examples-png` / `diagrams-png`. **Real fix** (one-pass when next touching the diagram scripts): add `-e HOME=/tmp` to the `docker run` invocations in `scripts/puml-to-png.sh` + `scripts/drawio-to-png.sh` so the JVM writes its cache inside the container, not the host CWD. Surfaced 2026-05-15.
+
 ## Roadmap (nice-to-have)
 
 Glob input, `--output-ext` in single-file/stdin, and `--summary` JSON shipped 2026-05-15 (see §"CLI surface"); removed from the roadmap as resolved.
