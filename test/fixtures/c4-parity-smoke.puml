@@ -1,0 +1,26 @@
+@startuml c4-parity-smoke
+' Smoke fixture for the regression class that shipped through puml2drawio:
+' a pre-fix catalyst dropped Person / System_Ext / boundary shapes, orphaned
+' their connectors, collapsed parallel relations, and omitted <diagram id>.
+' Every alias and every relation below MUST survive the conversion.
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/v2.10.0/C4_Deployment.puml
+
+Person(dev, "Developer")
+System_Ext(ext, "External System")
+
+System_Boundary(sb, "Core") {
+  System(core, "Core System")
+  ContainerDb(db, "DB", "PostgreSQL")
+}
+
+Deployment_Node(node, "Region") {
+  Node(host, "Host", "EC2")
+}
+
+Rel(dev, core, "uses")
+Rel(dev, core, "deploys")
+Rel(core, db, "reads")
+Rel(core, ext, "integrates")
+Rel(core, core, "self heal")
+Rel(core, host, "runs on")
+@enduml
