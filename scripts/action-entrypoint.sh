@@ -17,5 +17,6 @@ set --
 [ -n "${INPUT_MARGINY:-}" ] && set -- "$@" --marginy "${INPUT_MARGINY}"
 [ "${INPUT_FAIL_FAST:-false}" = "true" ] && set -- "$@" --fail-fast
 [ "${INPUT_QUIET:-false}" = "true" ] && set -- "$@" --quiet
+[ "${INPUT_SUMMARY:-false}" = "true" ] && set -- "$@" --summary
 
 exec node /app/src/cli.mjs "$@"

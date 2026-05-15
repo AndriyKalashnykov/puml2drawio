@@ -27,7 +27,7 @@ export function buildParser(argv) {
     .option('output-ext', {
       type: 'string',
       default: '.drawio',
-      describe: 'Output file extension used in batch mode'
+      describe: 'Output file extension. Used in batch/glob mode, and in single-file mode when --output (-o) is a directory. Not applicable to stdin (no source filename to derive a stem from).'
     })
     .option('layout-direction', {
       type: 'string',
@@ -40,6 +40,11 @@ export function buildParser(argv) {
     .option('marginx', { type: 'number', describe: 'X margin (env: CATALYST_MARGINX)' })
     .option('marginy', { type: 'number', describe: 'Y margin (env: CATALYST_MARGINY)' })
     .option('fail-fast', { type: 'boolean', default: false, describe: 'Stop on first batch error' })
+    .option('summary', {
+      type: 'boolean',
+      default: false,
+      describe: 'Emit a JSON conversion summary {total,converted,failed,files[]}. Batch/glob: to stdout. Single/stdin: to stderr (stdout still carries the drawio).'
+    })
     .option('quiet', { alias: 'q', type: 'boolean', default: false })
     .strict()
     .help()
@@ -63,51 +68,144 @@ async function readStdin(stdin) {
   return Buffer.concat(chunks).toString('utf-8')
 }
 
-async function runStdin({ output, options, stdin, stdout }) {
-  const puml = await readStdin(stdin)
-  const drawio = await convertString(puml, options)
-  if (output) {
-    await fs.mkdir(path.dirname(output), { recursive: true })
-    await fs.writeFile(output, drawio)
-  } else {
-    stdout.write(drawio)
-  }
+// Glob metacharacters per POSIX / node:fs glob (`*` `?` `[...]` `{...}`).
+// A lone `-` is stdin (handled before this); a real path has none of these.
+const GLOB_RE = /[*?[\]{}]/
+
+function isGlobPattern(s) {
+  return GLOB_RE.test(s)
 }
 
-async function runSingle({ input, output, options, stdout }) {
-  if (output) {
-    await convertFile(input, output, options)
-  } else {
-    const drawio = await convertFile(input, null, options)
-    stdout.write(drawio)
+// The static leading directory of a glob — every path segment up to (not
+// including) the first segment containing a metacharacter. Output paths are
+// derived relative to this, exactly as batch mode uses the input directory.
+// `diagrams/**/*.puml` -> `diagrams`; `**/*.puml` -> `.`; `a/b/c*.puml` -> `a/b`.
+function globBaseDir(pattern) {
+  const segs = []
+  for (const seg of pattern.split('/')) {
+    if (GLOB_RE.test(seg)) break
+    segs.push(seg)
   }
+  return segs.length > 0 ? segs.join('/') : '.'
 }
 
-async function runBatch({ input, output, options, outputExt, failFast, quiet, stderr }) {
-  const files = await collectPumlFiles(input)
-  if (files.length === 0) {
-    throw new Error(`No .puml files found under ${input}`)
-  }
+async function emitSummary(stream, files) {
+  const converted = files.filter((f) => f.status === 'converted').length
+  stream.write(
+    JSON.stringify({
+      total: files.length,
+      converted,
+      failed: files.length - converted,
+      files
+    }) + '\n'
+  )
+}
+
+// Shared many-file engine for both directory batch and glob input. `files`
+// is a pre-resolved, sorted list; `baseDir` anchors the output tree.
+async function convertMany({
+  files,
+  baseDir,
+  output,
+  options,
+  outputExt,
+  failFast,
+  quiet,
+  summary,
+  stdout,
+  stderr
+}) {
+  const results = []
   const errors = []
   for (const file of files) {
     const target = deriveOutputPath({
       inputPath: file,
-      baseDir: input,
+      baseDir,
       outputDir: output,
       ext: outputExt
     })
     try {
       await convertFile(file, target, options)
+      results.push({ input: file, output: target, status: 'converted' })
       if (!quiet) stderr.write(`converted: ${file} -> ${target}\n`)
     } catch (err) {
+      results.push({ input: file, output: target, status: 'failed', error: err.message })
       errors.push({ file, err })
       stderr.write(`failed:    ${file}: ${err.message}\n`)
       if (failFast) break
     }
   }
+  // Emit the summary BEFORE throwing so a partially-failed batch still
+  // reports machine-readable results (CI dashboards rely on this).
+  if (summary) await emitSummary(stdout, results)
   if (errors.length > 0) {
     throw new Error(`${errors.length} of ${files.length} file(s) failed to convert`)
   }
+}
+
+async function isDirectory(p) {
+  try {
+    return (await fs.stat(p)).isDirectory()
+  } catch {
+    return false
+  }
+}
+
+async function runStdin({ output, options, stdin, stdout, stderr, summary }) {
+  const puml = await readStdin(stdin)
+  const drawio = await convertString(puml, options)
+  let target = null
+  if (output) {
+    await fs.mkdir(path.dirname(output), { recursive: true })
+    await fs.writeFile(output, drawio)
+    target = output
+  } else {
+    stdout.write(drawio)
+  }
+  // stdin has no source filename, so --output-ext cannot derive a stem here
+  // (by design — see the option's describe). Summary goes to stderr so it
+  // never corrupts the drawio on stdout.
+  if (summary) await emitSummary(stderr, [{ input: '-', output: target, status: 'converted' }])
+}
+
+async function runSingle({ input, output, options, outputExt, stdout, stderr, summary }) {
+  let target = null
+  if (output) {
+    // --output-ext support in single-file mode: when -o is a directory,
+    // derive `<inputStem><outputExt>` inside it (batch-consistent). When -o
+    // is a file path, it is used verbatim (the path's own extension wins).
+    if (await isDirectory(output)) {
+      const stem = path.basename(input, path.extname(input))
+      target = path.join(output, `${stem}${outputExt}`)
+    } else {
+      target = output
+    }
+    await convertFile(input, target, options)
+  } else {
+    const drawio = await convertFile(input, null, options)
+    stdout.write(drawio)
+  }
+  if (summary) await emitSummary(stderr, [{ input, output: target, status: 'converted' }])
+}
+
+async function runBatch(args) {
+  const files = await collectPumlFiles(args.input)
+  if (files.length === 0) {
+    throw new Error(`No .puml files found under ${args.input}`)
+  }
+  await convertMany({ ...args, files, baseDir: args.input })
+}
+
+async function runGlob(args) {
+  const matches = []
+  for await (const entry of fs.glob(args.pattern)) matches.push(entry)
+  const files = matches
+    .filter((f) => f.toLowerCase().endsWith('.puml'))
+    .sort()
+  if (files.length === 0) {
+    throw new Error(`No .puml files matched glob ${args.pattern}`)
+  }
+  await convertMany({ ...args, files, baseDir: globBaseDir(args.pattern) })
 }
 
 // Yargs v17 strips a lone `-` positional (it treats `-` as an incomplete option
@@ -151,7 +249,27 @@ export async function runCli({
 
   try {
     if (input === '-') {
-      await runStdin({ output, options, stdin, stdout })
+      await runStdin({ output, options, stdin, stdout, stderr, summary: parsed.summary })
+      return 0
+    }
+    // Glob must be detected BEFORE fs.stat — a pattern like
+    // `diagrams/**/*.puml` is not a real path and would ENOENT.
+    if (isGlobPattern(input)) {
+      if (!output) {
+        stderr.write('error: --output is required when input is a glob pattern\n')
+        return 2
+      }
+      await runGlob({
+        pattern: input,
+        output,
+        options,
+        outputExt: parsed.outputExt,
+        failFast: parsed.failFast,
+        quiet: parsed.quiet,
+        summary: parsed.summary,
+        stdout,
+        stderr
+      })
       return 0
     }
     const stat = await fs.stat(input)
@@ -167,11 +285,21 @@ export async function runCli({
         outputExt: parsed.outputExt,
         failFast: parsed.failFast,
         quiet: parsed.quiet,
+        summary: parsed.summary,
+        stdout,
         stderr
       })
       return 0
     }
-    await runSingle({ input, output, options, stdout })
+    await runSingle({
+      input,
+      output,
+      options,
+      outputExt: parsed.outputExt,
+      stdout,
+      stderr,
+      summary: parsed.summary
+    })
     return 0
   } catch (err) {
     stderr.write(`error: ${err.message}\n`)

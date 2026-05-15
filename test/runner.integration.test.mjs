@@ -322,4 +322,132 @@ describeIfReady('runCli integration — full pipeline through catalyst', () => {
       await fsp.rm(dir, { recursive: true, force: true })
     }
   })
+
+  test('glob input expands and converts, preserving the static-prefix tree', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'puml2drawio-glob-'))
+    try {
+      const inputDir = path.join(dir, 'in')
+      const outputDir = path.join(dir, 'out')
+      await fsp.mkdir(path.join(inputDir, 'nested'), { recursive: true })
+      await fsp.copyFile(SAMPLE_PUML, path.join(inputDir, 'a.puml'))
+      await fsp.copyFile(SAMPLE_PUML, path.join(inputDir, 'nested', 'b.puml'))
+      await fsp.writeFile(path.join(inputDir, 'skip.txt'), 'not puml')
+
+      const { code, stderr } = await run([`${inputDir}/**/*.puml`, '-o', outputDir])
+      expect(code).toBe(0)
+      // baseDir = static prefix (inputDir) → tree preserved under outputDir.
+      expect(await fsp.readFile(path.join(outputDir, 'a.drawio'), 'utf-8')).toContain('<mxGraphModel')
+      expect(await fsp.readFile(path.join(outputDir, 'nested', 'b.drawio'), 'utf-8')).toContain('<mxGraphModel')
+      expect(stderr).toContain('converted:')
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('glob input requires --output (exit 2)', async () => {
+    const { code, stderr } = await run(['sample/*.puml'])
+    expect(code).toBe(2)
+    expect(stderr).toContain('--output is required when input is a glob pattern')
+  })
+
+  test('glob matching no .puml fails with a descriptive error (exit 1)', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'puml2drawio-glob-empty-'))
+    try {
+      const { code, stderr } = await run([`${dir}/*.puml`, '-o', path.join(dir, 'out')])
+      expect(code).toBe(1)
+      expect(stderr).toContain('No .puml files matched glob')
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('--output-ext applies in single-file mode when -o is a directory', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'puml2drawio-ext-single-'))
+    try {
+      const input = path.join(dir, 'diagram.puml')
+      const outDir = path.join(dir, 'out')
+      await fsp.mkdir(outDir, { recursive: true })
+      await fsp.copyFile(SAMPLE_PUML, input)
+
+      const { code } = await run([input, '-o', outDir, '--output-ext', '.xml'])
+      expect(code).toBe(0)
+      // Derived <stem><ext> inside the directory, batch-consistent.
+      expect(await fsp.readFile(path.join(outDir, 'diagram.xml'), 'utf-8')).toContain('<mxGraphModel')
+      expect(await fsp.readdir(outDir)).toEqual(['diagram.xml'])
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('--output-ext is ignored when single-file -o is an explicit file path', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'puml2drawio-ext-file-'))
+    try {
+      const input = path.join(dir, 'in.puml')
+      const out = path.join(dir, 'explicit.drawio')
+      await fsp.copyFile(SAMPLE_PUML, input)
+
+      const { code } = await run([input, '-o', out, '--output-ext', '.xml'])
+      expect(code).toBe(0)
+      // Explicit file path wins; --output-ext does not rewrite it.
+      expect(await fsp.readFile(out, 'utf-8')).toContain('<mxGraphModel')
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('--summary emits a JSON report to stdout in batch mode', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'puml2drawio-sum-batch-'))
+    try {
+      const inputDir = path.join(dir, 'in')
+      const outputDir = path.join(dir, 'out')
+      await fsp.mkdir(inputDir, { recursive: true })
+      await fsp.copyFile(SAMPLE_PUML, path.join(inputDir, 'a.puml'))
+      await fsp.copyFile(SAMPLE_PUML, path.join(inputDir, 'b.puml'))
+
+      const { code, stdout } = await run([inputDir, '-o', outputDir, '--summary', '--quiet'])
+      expect(code).toBe(0)
+      const summary = JSON.parse(stdout.trim())
+      expect(summary.total).toBe(2)
+      expect(summary.converted).toBe(2)
+      expect(summary.failed).toBe(0)
+      expect(summary.files.map((f) => f.status)).toEqual(['converted', 'converted'])
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('--summary records failures and still emits JSON before non-zero exit', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'puml2drawio-sum-fail-'))
+    try {
+      const inputDir = path.join(dir, 'in')
+      const outputDir = path.join(dir, 'out')
+      await fsp.mkdir(inputDir, { recursive: true })
+      await fsp.copyFile(SAMPLE_PUML, path.join(inputDir, 'a.puml'))
+      await fsp.copyFile(SAMPLE_PUML, path.join(inputDir, 'b.puml'))
+      await fsp.mkdir(path.join(outputDir, 'b.drawio'), { recursive: true }) // EISDIR on b
+
+      const { code, stdout } = await run([inputDir, '-o', outputDir, '--summary', '--quiet'])
+      expect(code).toBe(1)
+      const summary = JSON.parse(stdout.trim())
+      expect(summary.total).toBe(2)
+      expect(summary.converted).toBe(1)
+      expect(summary.failed).toBe(1)
+      const failed = summary.files.find((f) => f.status === 'failed')
+      expect(failed.input).toContain('b.puml')
+      expect(typeof failed.error).toBe('string')
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('--summary in single/stdin mode goes to stderr, drawio stays on stdout', async () => {
+    const samplePuml = await fsp.readFile(SAMPLE_PUML, 'utf-8')
+    const { code, stdout, stderr } = await run(['-', '--summary'], { stdinChunks: samplePuml })
+    expect(code).toBe(0)
+    expect(stdout).toContain('<mxGraphModel') // drawio uncorrupted on stdout
+    const summary = JSON.parse(stderr.trim())
+    expect(summary.total).toBe(1)
+    expect(summary.converted).toBe(1)
+    expect(summary.files[0].input).toBe('-')
+  })
 })

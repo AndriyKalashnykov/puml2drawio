@@ -271,6 +271,29 @@ convert-png: image-build
 		ALPINE_IMAGE=alpine:$(ALPINE_VERSION) \
 		bash scripts/drawio-to-png.sh
 
+#examples-png: @ Regenerate the committed README side-by-side example PNGs (sample/example.puml → source vs converted drawio)
+# Produces docs/examples/{example.puml.png (plantuml render of the source),
+# example.drawio (converted), example.drawio.png (drawio-export render)}.
+# Committed so the README can embed a visual before/after; this is the single
+# regeneration path — run after a CATALYST_REF bump so the committed PNG never
+# drifts from what the converter actually emits.
+#
+# Conversion runs via `node src/cli.mjs` against the VENDORED catalyst
+# (the pinned CATALYST_REF that `make deps` built), NOT the Docker image:
+# the image build is unnecessary here, and a stale local image would emit
+# pre-fix output. plantuml + drawio-export still need their pinned images.
+examples-png: deps require-docker
+	@mkdir -p build docs/examples
+	@INPUT=sample/example.puml OUTPUT_DIR=docs/examples \
+		PLANTUML_IMAGE=plantuml/plantuml:$(PLANTUML_VERSION) \
+		bash scripts/puml-to-png.sh
+	@node src/cli.mjs sample/example.puml -o docs/examples/example.drawio
+	@INPUT=docs/examples/example.drawio OUTPUT_DIR=docs/examples \
+		DRAWIO_EXPORT_IMAGE=rlespinasse/drawio-export:$(DRAWIO_EXPORT_TAG) \
+		ALPINE_IMAGE=alpine:$(ALPINE_VERSION) \
+		bash scripts/drawio-to-png.sh
+	@echo "Regenerated docs/examples/: example.puml.png (source) + example.drawio.png (converted)"
+
 #image-push: @ Tag and push image to $(DOCKER_REGISTRY)/$(DOCKER_REPO)
 image-push: image-build
 	@if [ -n "$${GH_ACCESS_TOKEN:-}" ] && echo "$(DOCKER_REGISTRY)" | grep -q "ghcr.io"; then \
@@ -395,5 +418,5 @@ release-floating-tags:
 .PHONY: help deps deps-check require-docker fetch-catalyst clean \
 	build test test-coverage integration-test action-test \
 	lint lint-docker lint-shell vulncheck trivy-fs mermaid-lint static-check \
-	image-build image-run image-sample image-push image-stop puml-png drawio-png drawio-layout diagrams-png convert-png e2e e2e-batch e2e-convert-png \
+	image-build image-run image-sample image-push image-stop puml-png drawio-png drawio-layout diagrams-png convert-png examples-png e2e e2e-batch e2e-convert-png \
 	ci ci-run renovate-validate release release-floating-tags

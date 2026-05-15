@@ -5,7 +5,7 @@
 
 # puml2drawio — PlantUML C4 → draw.io converter
 
-Converts PlantUML C4 diagrams (`.puml`) to editable draw.io XML (`.drawio`), built to drop into CI pipelines that commit PlantUML sources and want draw.io output committed back. The **user surface** takes a file, directory (recursed), or stdin, wraps the [catalyst](https://github.com/AndriyKalashnykov/catalyst) library (vendored at a pinned `CATALYST_REF` tag, Renovate-tracked via `github-tags`) with an [elkjs](https://github.com/kieler/elkjs) re-layout pass, and ships as both a `docker run` CLI and a reusable GitHub Action; the **maintainer surface** covers a multi-arch GHCR image (Trivy-scanned, cosign keyless-signed), a three-layer Vitest + Docker e2e test pyramid, and an `mise`-pinned toolchain with Renovate-managed dependencies.
+Converts PlantUML C4 diagrams (`.puml`) to editable draw.io XML (`.drawio`), built to drop into CI pipelines that commit PlantUML sources and want draw.io output committed back. The **user surface** takes a file, directory (recursed), glob pattern, or stdin, wraps the [catalyst](https://github.com/AndriyKalashnykov/catalyst) library (vendored at a pinned `CATALYST_REF` tag, Renovate-tracked via `github-tags`) with an [elkjs](https://github.com/kieler/elkjs) re-layout pass, and ships as both a `docker run` CLI and a reusable GitHub Action; the **maintainer surface** covers a multi-arch GHCR image (Trivy-scanned, cosign keyless-signed), a three-layer Vitest + Docker e2e test pyramid, and an `mise`-pinned toolchain with Renovate-managed dependencies.
 
 ```mermaid
 flowchart LR
@@ -20,7 +20,7 @@ flowchart LR
   end
 ```
 
-Data-flow view of a conversion: PlantUML source enters via stdin, a file path, or a directory; the CLI delegates layout + XML emission to the vendored catalyst library; draw.io XML leaves via stdout, a file, or a mirrored output directory. The CLI and catalyst both live inside the published Docker image — consumers bind-mount their workspace at `/work`.
+Data-flow view of a conversion: PlantUML source enters via stdin, a file path, a directory, or a glob pattern; the CLI delegates layout + XML emission to the vendored catalyst library; draw.io XML leaves via stdout, a file, or a mirrored output directory. The CLI and catalyst both live inside the published Docker image — consumers bind-mount their workspace at `/work`.
 
 | Component | Technology | Rationale |
 |-----------|------------|-----------|
@@ -41,7 +41,19 @@ Data-flow view of a conversion: PlantUML source enters via stdin, a file path, o
 
 ## Quick Start
 
-The Docker image and GitHub Action both accept the same three input modes — **single file**, **directory (recursive)**, and **stdin**. Pick the one that fits your pipeline.
+The Docker image and GitHub Action both accept the same four input modes — **single file**, **directory (recursive)**, **glob pattern** (e.g. `'diagrams/**/*.puml'`, requires `-o`), and **stdin**. Pick the one that fits your pipeline.
+
+### What a conversion looks like
+
+`sample/example.puml` (left, rendered by PlantUML) converts to `.drawio` (right, rendered by draw.io). The `.drawio` is fully editable in [diagrams.net](https://app.diagrams.net/) / the VS Code Draw.io extension — not a flat image.
+
+<p align="center">
+  <img src="docs/examples/example.puml.png" alt="PlantUML C4 source diagram" width="300">
+  &nbsp;&nbsp;→&nbsp;&nbsp;
+  <img src="docs/examples/example.drawio.png" alt="Converted editable draw.io diagram" width="300">
+</p>
+
+Regenerate after a `CATALYST_REF` bump with `make examples-png` (source: [`sample/example.puml`](sample/example.puml)).
 
 ### Convert a single file (Docker)
 
@@ -97,8 +109,9 @@ Useful flags in folder mode:
 
 | Flag | Effect |
 |------|--------|
-| `--output-ext .xml` | Change output extension (default `.drawio`) |
+| `--output-ext .xml` | Output extension (default `.drawio`). Batch/glob mode, and single-file mode when `-o` is a directory. Not applied to stdin (no source filename for a stem) |
 | `--fail-fast` | Stop at the first failing file (default: attempt all, exit 1 at the end listing failures) |
+| `--summary` | Emit a JSON `{total,converted,failed,files[]}` report — to stdout in batch/glob, to stderr in single/stdin (drawio stays uncorrupted on stdout). Written even on partial failure, before the non-zero exit |
 | `-q`, `--quiet` | Suppress per-file progress lines on stderr |
 | `--layout-direction=LR` | Horizontal layout (`TB`/`BT`/`LR`/`RL`; default `TB`) |
 
@@ -170,7 +183,7 @@ make drawio-png                                             # build/*.drawio →
     path: build/drawio/
 ```
 
-Behind the scenes, the Action runs the published GHCR image (`docker://ghcr.io/andriykalashnykov/puml2drawio:1`) — no per-consumer build, ~12 MB pull. Everything described above (folder mode, `-o` required, `--fail-fast`, `--output-ext`) applies through `with:` inputs (`fail-fast: 'true'`, `output-ext: '.xml'`, etc.).
+Behind the scenes, the Action runs the published GHCR image (`docker://ghcr.io/andriykalashnykov/puml2drawio:1`) — no per-consumer build, ~12 MB pull. Everything described above (folder/glob mode, `-o` required, `--fail-fast`, `--output-ext`, `--summary`) applies through `with:` inputs (`fail-fast: 'true'`, `output-ext: '.xml'`, `summary: 'true'`, etc.).
 
 **Action inputs** (full list, mirrors `action.yml`):
 
@@ -178,7 +191,7 @@ Behind the scenes, the Action runs the published GHCR image (`docker://ghcr.io/a
 |-------|----------|---------|-------------|
 | `input` | yes | — | `.puml` file, directory (recursed), or `-` for stdin |
 | `output` | no | — | Output file (single input) or directory (batch). Required when `input` is a directory |
-| `output-ext` | no | `.drawio` | Output file extension used in batch mode |
+| `output-ext` | no | `.drawio` | Output file extension (batch/glob; single-file when `output` is a directory) |
 | `layout-direction` | no | (catalyst default) | Layout direction: `TB` \| `BT` \| `LR` \| `RL` |
 | `nodesep` | no | catalyst default | Node separation in px |
 | `edgesep` | no | catalyst default | Edge separation in px |
@@ -187,6 +200,7 @@ Behind the scenes, the Action runs the published GHCR image (`docker://ghcr.io/a
 | `marginy` | no | catalyst default | Y margin in px |
 | `fail-fast` | no | `'false'` | Stop at the first batch conversion error |
 | `quiet` | no | `'false'` | Suppress per-file progress output |
+| `summary` | no | `'false'` | Emit a JSON conversion summary (batch/glob → stdout; single/stdin → stderr) |
 
 Only **non-empty** inputs are forwarded to the CLI (`scripts/action-entrypoint.sh` filters them). Direct expression interpolation would produce `--output=` on missing inputs and fail argument parsing — that's why the shim exists.
 
@@ -224,7 +238,7 @@ The project is a thin wrapper around catalyst — the wrapper's own code is not 
 
 - **`CATALYST_REF`** — file holding the pinned `AndriyKalashnykov/catalyst` release tag (e.g. `v1.3.0`). Renovate's `customManagers` rule extracts it via `github-tags`; the per-package rule disables automerge for catalyst bumps because they can be API-affecting.
 - **`scripts/fetch-catalyst.sh`** — clones the pinned ref into `vendor/catalyst/`, runs `npm ci`, transiently installs `typescript@~5.7` when `tsc` isn't already present (upstream catalyst's build script is `tsc` but typescript isn't in its devDependencies), runs `npm run build`, then **wipes `node_modules/` and reinstalls with `--omit=dev --ignore-scripts`** (`npm prune` leaves transitive devDep trees behind on nested deps, shipping HIGH CVEs into the image). Idempotent; skipped when `vendor/catalyst/` already matches `CATALYST_REF` and has `dist/`.
-- **`src/runner.mjs`** — yargs-based dispatch. Three modes: stdin (`-`), single file, directory (recursed for `*.puml`). In directory mode, `-o` is required; output mirrors the input tree.
+- **`src/runner.mjs`** — yargs-based dispatch. Four modes: stdin (`-`), single file, directory (recursed for `*.puml`), and glob pattern (native `fs.glob`). Directory and glob modes share the `convertMany` engine and require `-o`; output mirrors the input tree (anchored at the directory or the glob's static prefix).
 - **`src/options.mjs`** — pure option resolution, three-tier precedence: flag → env var → default. Returns `Object.freeze(...)`.
 - **`src/convert.mjs`** — dynamically imports catalyst from `vendor/catalyst/dist/catalyst.mjs` so pure-logic tests run without the vendored build.
 - **`Dockerfile`** — three stages. `catalyst-builder` clones + builds catalyst at `CATALYST_REF` (passed as build arg). `deps` installs the wrapper's pnpm prod deps. Runtime stage runs as non-root, `WORKDIR /work` so consumers mount their working directory.
@@ -236,18 +250,19 @@ The project is a thin wrapper around catalyst — the wrapper's own code is not 
 puml2drawio <input> [options]
 
 Positional:
-  input    Input .puml file, directory (recursed), or "-" for stdin
+  input    Input .puml file, directory (recursed), glob pattern, or "-" for stdin
 
 Options:
-  -o, --output             Output file (single input) or directory (batch)
-      --output-ext         Output extension in batch mode (default: .drawio)
+  -o, --output             Output file (single input) or directory (batch/glob)
+      --output-ext         Output extension; batch/glob, and single-file when -o is a directory (default: .drawio)
       --layout-direction   Layout direction: TB | BT | LR | RL (default: TB)
       --nodesep            Node separation in px (default: 50)
       --edgesep            Edge separation in px (default: 10)
       --ranksep            Rank separation in px (default: 50)
       --marginx            X margin in px (default: 20)
       --marginy            Y margin in px (default: 20)
-      --fail-fast          Stop on first error in batch mode
+      --fail-fast          Stop on first error in batch/glob mode
+      --summary            Emit JSON summary (batch/glob: stdout; single/stdin: stderr)
   -q, --quiet              Suppress per-file progress
       --help, --version
 ```
@@ -290,6 +305,7 @@ Run `make help` to see every target.
 | `make drawio-png` | Render drawio → PNG via `rlespinasse/drawio-export` (`INPUT=<file\|dir>` `OUTPUT_DIR=<dir>`; defaults `build` → `build/png/*.drawio.png`) |
 | `make diagrams-png` | Side-by-side: render every `sample/*.puml` twice (source via plantuml, catalyst-output via drawio-export) for visual diff |
 | `make convert-png` | Convert PUML → drawio **and** render PNG side-by-side in the **same** folder (`INPUT=<dir>` `OUTPUT_DIR=<dir>`; defaults `sample` → `build`, producing `<stem>.drawio` + `<stem>.drawio.png`) |
+| `make examples-png` | Regenerate the committed README before/after example PNGs in `docs/examples/` (run after a `CATALYST_REF` bump) |
 | `make drawio-layout INPUT=<file> [OUTPUT=<file>] [DIRECTION=…]` | Re-layout a drawio file via [elkjs](https://github.com/kieler/elkjs). Handles dense diagrams better than catalyst's built-in layout — use when the auto-layout is cramped. Default output: overwrite in-place. `DIRECTION=` is `AUTO` / `DOWN` / `UP` / `LEFT` / `RIGHT`; `AUTO` (default) picks per diagram — see below |
 
 **`make drawio-layout` — direction selection**

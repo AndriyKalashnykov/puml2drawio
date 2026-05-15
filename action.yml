@@ -7,13 +7,13 @@ branding:
 
 inputs:
   input:
-    description: 'Input .puml file, directory (recursed), or "-" for stdin'
+    description: 'Input .puml file, directory (recursed), glob pattern, or "-" for stdin'
     required: true
   output:
     description: 'Output file (single input) or directory (batch)'
     required: false
   output-ext:
-    description: 'Output file extension used in batch mode'
+    description: 'Output file extension (batch/glob; single-file when output is a directory). Not applied to stdin.'
     required: false
     default: '.drawio'
   layout-direction:
@@ -40,6 +40,10 @@ inputs:
     default: 'false'
   quiet:
     description: 'Suppress per-file progress output (true | false)'
+    required: false
+    default: 'false'
+  summary:
+    description: 'Emit a JSON conversion summary (true | false). Batch/glob: to stdout; single/stdin: to stderr'
     required: false
     default: 'false'
 

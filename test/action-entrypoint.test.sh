@@ -67,8 +67,16 @@ assert_args "empty-string INPUT_OUTPUT / OUTPUT_EXT are skipped" \
     "/app/src/cli.mjs diagram.puml" \
     INPUT_INPUT=diagram.puml INPUT_OUTPUT= INPUT_OUTPUT_EXT=
 
+assert_args "summary=true emits --summary" \
+    "/app/src/cli.mjs diagram.puml --summary" \
+    INPUT_INPUT=diagram.puml INPUT_SUMMARY=true
+
+assert_args "summary=false emits no flag" \
+    "/app/src/cli.mjs diagram.puml" \
+    INPUT_INPUT=diagram.puml INPUT_SUMMARY=false
+
 assert_args "all flags set" \
-    "/app/src/cli.mjs diagram.puml --output out.drawio --output-ext .xml --layout-direction TB --nodesep 50 --edgesep 10 --ranksep 50 --marginx 20 --marginy 20 --fail-fast --quiet" \
+    "/app/src/cli.mjs diagram.puml --output out.drawio --output-ext .xml --layout-direction TB --nodesep 50 --edgesep 10 --ranksep 50 --marginx 20 --marginy 20 --fail-fast --quiet --summary" \
     INPUT_INPUT=diagram.puml \
     INPUT_OUTPUT=out.drawio \
     INPUT_OUTPUT_EXT=.xml \
@@ -79,7 +87,8 @@ assert_args "all flags set" \
     INPUT_MARGINX=20 \
     INPUT_MARGINY=20 \
     INPUT_FAIL_FAST=true \
-    INPUT_QUIET=true
+    INPUT_QUIET=true \
+    INPUT_SUMMARY=true
 
 assert_args "stdin mode with - positional" \
     "/app/src/cli.mjs -" \
