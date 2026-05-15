@@ -34,7 +34,7 @@
     },
     {
       "customType": "regex",
-      "description": "Track AndriyKalashnykov/catalyst (the maintained fork; upstream localgod/catalyst is inactive) by release TAG. CATALYST_REF holds a v-prefixed semver tag (e.g. v1.3.0), so this uses the github-tags datasource and captures the tag as currentValue. The fork tags releases but does not cut formal GitHub Releases, so github-tags (not github-releases) is the correct datasource. The CATALYST_REF packageRule below carves out automerge:false because catalyst bumps are API-affecting.",
+      "description": "Track AndriyKalashnykov/catalyst (the canonical catalyst repo) by release TAG. CATALYST_REF holds a v-prefixed semver tag (e.g. v1.3.0), so this uses the github-tags datasource and captures the tag as currentValue. catalyst tags releases but does not cut formal GitHub Releases, so github-tags (not github-releases) is the correct datasource. The CATALYST_REF packageRule below carves out automerge:false because catalyst bumps are API-affecting.",
       "managerFilePatterns": ["/^CATALYST_REF$/"],
       "matchStrings": [
         "^(?<currentValue>v?\\d[\\w.+-]*)\\s*$"
@@ -100,10 +100,10 @@
       "automerge": true
     },
     {
-      "description": "Catalyst pin — open PR but never automerge (breaking-change risk). Matches whichever dep name the custom manager is currently tracking (fork while ahead, upstream once realigned).",
+      "description": "Catalyst pin — open PR but never automerge (breaking-change risk: catalyst bumps are API-affecting).",
       "matchManagers": ["custom.regex"],
       "matchFileNames": ["CATALYST_REF"],
-      "matchDepNames": ["localgod/catalyst", "AndriyKalashnykov/catalyst"],
+      "matchDepNames": ["AndriyKalashnykov/catalyst"],
       "automerge": false,
       "minimumReleaseAge": "1 day",
       "labels": ["dependencies", "catalyst-upstream"]

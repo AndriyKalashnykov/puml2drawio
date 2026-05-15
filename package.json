@@ -1,7 +1,7 @@
 {
   "name": "puml2drawio",
   "version": "0.1.0",
-  "description": "Dockerized CLI that converts PlantUML C4 diagrams to draw.io XML (wraps localgod/catalyst).",
+  "description": "Dockerized CLI that converts PlantUML C4 diagrams to draw.io XML (wraps the catalyst library).",
   "type": "module",
   "bin": {
     "puml2drawio": "./src/cli.mjs"

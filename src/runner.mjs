@@ -32,7 +32,7 @@ export function buildParser(argv) {
     .option('layout-direction', {
       type: 'string',
       choices: ['TB', 'BT', 'LR', 'RL'],
-      describe: 'Dagre layout direction (env: CATALYST_LAYOUT_DIRECTION)'
+      describe: 'Layout direction (env: CATALYST_LAYOUT_DIRECTION)'
     })
     .option('nodesep', { type: 'number', describe: 'Node separation (env: CATALYST_NODESEP)' })
     .option('edgesep', { type: 'number', describe: 'Edge separation (env: CATALYST_EDGESEP)' })

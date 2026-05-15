@@ -45,7 +45,7 @@ done
 # 2b. Re-layout every produced .drawio via elkjs — the auto-direction
 #     heuristic in layoutDrawio picks RIGHT for sparse Context-style diagrams
 #     and DOWN for nested/dense Container/Deployment diagrams. Skippable with
-#     SKIP_DRAWIO_LAYOUT=1 for callers that want catalyst's raw dagre output.
+#     SKIP_DRAWIO_LAYOUT=1 for callers that want catalyst's raw (un-re-laid-out) output.
 if [ -z "${SKIP_DRAWIO_LAYOUT:-}" ]; then
   for drawio in build/*.drawio; do
     [ -f "$drawio" ] || continue

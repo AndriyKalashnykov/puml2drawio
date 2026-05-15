@@ -1,5 +1,5 @@
 // Layout defaults. Chosen for readability on real-world C4 diagrams:
-// the prior dagre defaults (50/10/50/20/20) crammed shapes so tightly that
+// catalyst's built-in layout defaults (50/10/50/20/20) crammed shapes so tightly that
 // labels overlapped edges and nested boundaries pressed against their
 // children. Bumps below give shapes room to breathe without visibly
 // inflating simple diagrams. Every field can still be overridden per-call

@@ -2,10 +2,11 @@
 // <mxGeometry> coordinates of every shape. Standalone from the PUML→drawio
 // path — works on any catalyst-produced (or hand-authored) drawio file.
 //
-// Why: dagre (inside catalyst) is a layered-graph algorithm and stretches
-// diagrams vertically when many siblings share a common parent-edge source.
-// ELK's layered algorithm handles these cases much better, and its
-// hierarchical mode respects nested containers (C4 boundaries).
+// Why: an independent re-layout pass. Even though catalyst's own engine is
+// ELK, this stage re-runs ELK's `layered` algorithm with C4-tuned spacing
+// and explicit hierarchical (nested-container) handling, and a per-diagram
+// direction heuristic — useful for dense container diagrams and for
+// re-laying-out hand-authored or externally-produced drawio files.
 import { XMLParser, XMLBuilder } from 'fast-xml-parser'
 import ELK from 'elkjs'
 
