@@ -94,6 +94,33 @@ describeIfReady('layout-drawio-cli — happy + error paths via child_process', (
     }
   })
 
+  test('--ranksep/--nodesep reach ELK through the CLI argv path (output differs from defaults)', async () => {
+    // The library-level test asserts layoutDrawio honours custom ELK options;
+    // this asserts the CLI argv→layoutDrawio plumbing actually carries them.
+    // Pin --direction so the AUTO heuristic doesn't introduce nondeterminism
+    // between the two runs.
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'layout-cli-spacing-'))
+    try {
+      const input = path.join(dir, 'in.drawio')
+      const defOut = path.join(dir, 'default.drawio')
+      const wideOut = path.join(dir, 'wide.drawio')
+      await fsp.writeFile(input, seedDrawio)
+
+      const def = await runCli([input, '-o', defOut, '--direction=DOWN'])
+      const wide = await runCli([input, '-o', wideOut, '--direction=DOWN', '--ranksep=400', '--nodesep=200'])
+      expect(def.code).toBe(0)
+      expect(wide.code).toBe(0)
+
+      const defXml = await fsp.readFile(defOut, 'utf-8')
+      const wideXml = await fsp.readFile(wideOut, 'utf-8')
+      expect(wideXml).toContain('<mxGraphModel')
+      // Larger rank/node separation must move shapes → geometry differs.
+      expect(wideXml).not.toBe(defXml)
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   test('exits 1 when input file does not exist', async () => {
     const missing = path.join(os.tmpdir(), `layout-cli-missing-${Date.now()}.drawio`)
     const { code, stderr } = await runCli([missing])

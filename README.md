@@ -196,7 +196,7 @@ Only **non-empty** inputs are forwarded to the CLI (`scripts/action-entrypoint.s
 |-----|------------------|----------|
 | `@v1` | every `v1.x.y` release (latest patch+minor in v1) | most consumers — gets bug fixes automatically, breaks only on a v2 major bump that you'd review explicitly |
 | `@v1.0` | every `v1.0.x` patch | stricter consumers — patches only, no minor-version drift |
-| `@v1.0.1` | nothing (immutable) | reproducible builds, audited supply chain |
+| `@v1.2.0` | nothing (immutable) | reproducible builds, audited supply chain |
 | `@<commit-sha>` | nothing (immutable, doesn't redirect) | strictest pin; couple with Renovate's `helpers:pinGitHubActionDigests` to auto-PR new SHAs |
 
 ## Prerequisites
@@ -394,7 +394,7 @@ No other secrets are required. Cosign uses GitHub OIDC (`id-token: write` job pe
 docker buildx imagetools inspect ghcr.io/andriykalashnykov/puml2drawio:latest
 
 # cosign signature (tagged releases)
-cosign verify ghcr.io/andriykalashnykov/puml2drawio:v1.0.0 \
+cosign verify ghcr.io/andriykalashnykov/puml2drawio:v1.2.0 \
   --certificate-identity-regexp 'https://github\.com/andriykalashnykov/puml2drawio/.+' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```

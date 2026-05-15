@@ -276,4 +276,50 @@ describeIfReady('runCli integration — full pipeline through catalyst', () => {
       await fsp.rm(dir, { recursive: true, force: true })
     }
   })
+
+  test('stdin -> nested -o path creates missing parent directories', async () => {
+    // runStdin's `fs.mkdir(path.dirname(output), { recursive: true })` +
+    // writeFile branch — covered for batch (deeply-nested tree) and single
+    // file, but never for stdin mode with a nested -o target.
+    const samplePuml = await fsp.readFile(SAMPLE_PUML, 'utf-8')
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'puml2drawio-stdin-nested-'))
+    try {
+      const output = path.join(dir, 'a', 'b', 'c', 'out.drawio')
+      const { code, stdout, stderr } = await run(['-', '-o', output], { stdinChunks: samplePuml })
+      expect(code).toBe(0)
+      expect(stdout).toBe('') // written to file, not stdout
+      expect(stderr).toBe('')
+      expect(await fsp.readFile(output, 'utf-8')).toContain('<mxGraphModel')
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('non-quiet batch interleaves converted: and failed: on stderr', async () => {
+    // The `batch accumulates errors` test runs --quiet, so the non-quiet
+    // stderr interleave (converted: a/c alongside failed: b) is otherwise
+    // unasserted.
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'puml2drawio-batch-verbose-'))
+    try {
+      const inputDir = path.join(dir, 'in')
+      const outputDir = path.join(dir, 'out')
+      await fsp.mkdir(inputDir, { recursive: true })
+      await fsp.copyFile(SAMPLE_PUML, path.join(inputDir, 'a.puml'))
+      await fsp.copyFile(SAMPLE_PUML, path.join(inputDir, 'b.puml'))
+      await fsp.copyFile(SAMPLE_PUML, path.join(inputDir, 'c.puml'))
+      // Force b to fail deterministically (EISDIR), same idiom as the
+      // --quiet sibling test.
+      await fsp.mkdir(path.join(outputDir, 'b.drawio'), { recursive: true })
+
+      const { code, stderr } = await run([inputDir, '-o', outputDir])
+      expect(code).toBe(1)
+      expect(stderr).toContain('converted:')
+      expect(stderr).toContain('a.puml')
+      expect(stderr).toContain('c.puml')
+      expect(stderr).toContain('failed:')
+      expect(stderr).toContain('b.puml')
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
 })
