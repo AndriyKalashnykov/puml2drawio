@@ -34,15 +34,14 @@
     },
     {
       "customType": "regex",
-      "description": "Track AndriyKalashnykov/catalyst (fork) main HEAD pinned in CATALYST_REF. While the fork carries unmerged fixes (see localgod/catalyst#554 PRs #555-#558) we pin to the fork, not upstream — otherwise renovate would repeatedly suggest rolling the ref backward to upstream main, losing the fork commits. Flip this back to localgod/catalyst once the upstream PRs merge and fork/upstream realign.",
+      "description": "Track AndriyKalashnykov/catalyst (the maintained fork; upstream localgod/catalyst is inactive) by release TAG. CATALYST_REF holds a v-prefixed semver tag (e.g. v1.3.0), so this uses the github-tags datasource and captures the tag as currentValue. The fork tags releases but does not cut formal GitHub Releases, so github-tags (not github-releases) is the correct datasource. The CATALYST_REF packageRule below carves out automerge:false because catalyst bumps are API-affecting.",
       "managerFilePatterns": ["/^CATALYST_REF$/"],
       "matchStrings": [
-        "^(?<currentDigest>[a-f0-9]{40})"
+        "^(?<currentValue>v?\\d[\\w.+-]*)\\s*$"
       ],
-      "currentValueTemplate": "main",
       "depNameTemplate": "AndriyKalashnykov/catalyst",
-      "packageNameTemplate": "https://github.com/AndriyKalashnykov/catalyst",
-      "datasourceTemplate": "git-refs"
+      "packageNameTemplate": "AndriyKalashnykov/catalyst",
+      "datasourceTemplate": "github-tags"
     }
   ],
   "vulnerabilityAlerts": {

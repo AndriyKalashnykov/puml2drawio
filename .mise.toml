@@ -1,5 +1,15 @@
+[settings]
+# Make .nvmrc the single source of truth for the Node major. mise does NOT
+# read idiomatic version files (.nvmrc/.node-version) by default — it must be
+# opted-in per tool. With this enabled and no `node` entry in [tools], mise
+# resolves Node from .nvmrc, exactly like actions/setup-node's
+# `node-version-file: '.nvmrc'`. This removes the previous dual pin
+# (.nvmrc=24 AND .mise.toml node="24"), which let local mise and CI
+# setup-node drift apart. Verified: `mise current node` → resolves .nvmrc.
+idiomatic_version_file_enable_tools = ["node"]
+
 [tools]
-node = "24"
+# node: NOT pinned here — comes from .nvmrc via the setting above.
 # renovate: datasource=github-releases depName=hadolint/hadolint
 hadolint = "2.14.0"
 # renovate: datasource=github-releases depName=nektos/act
