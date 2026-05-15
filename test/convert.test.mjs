@@ -32,6 +32,21 @@ describe('deriveOutputPath', () => {
     })
     expect(result).toBe(path.join('out', 'a.drawio'))
   })
+
+  test('absolute inputPath + absolute baseDir (the real runBatch call shape)', () => {
+    // collectPumlFiles returns joined paths and runBatch passes the user's
+    // input dir as baseDir; when the CLI is given an absolute directory both
+    // are absolute. path.relative of two absolute paths yields the in-tree
+    // relative portion, which must still nest correctly under outputDir.
+    const base = path.resolve('/tmp/puml2drawio-fixture/in')
+    const input = path.join(base, 'context', 'main.puml')
+    const result = deriveOutputPath({
+      inputPath: input,
+      baseDir: base,
+      outputDir: 'build/drawio'
+    })
+    expect(result).toBe(path.join('build/drawio', 'context', 'main.drawio'))
+  })
 })
 
 describe('collectPumlFiles', () => {
