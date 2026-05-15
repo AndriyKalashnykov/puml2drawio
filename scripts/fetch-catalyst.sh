@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Clone localgod/catalyst at the SHA pinned in CATALYST_REF, build it,
+# Clone AndriyKalashnykov/catalyst (the maintained, canonical fork — upstream
+# localgod/catalyst is inactive) at the ref pinned in CATALYST_REF, build it,
 # and leave dist/ + runtime node_modules under vendor/catalyst/.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="${SCRIPT_DIR}/.."
-REPO="${CATALYST_REPO:-https://github.com/localgod/catalyst.git}"
+REPO="${CATALYST_REPO:-https://github.com/AndriyKalashnykov/catalyst.git}"
 REF_FILE="${ROOT}/CATALYST_REF"
 REF="${CATALYST_REF:-$(tr -d '[:space:]' < "${REF_FILE}")}"
 VENDOR="${ROOT}/vendor/catalyst"
