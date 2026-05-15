@@ -92,11 +92,11 @@ require-docker:
 	@command -v docker >/dev/null 2>&1 || { echo "Error: docker required."; exit 1; }
 
 #fetch-catalyst: @ Clone and build catalyst at pinned CATALYST_REF
-# Temporarily sourced from AndriyKalashnykov/catalyst (fork) while upstream PRs
-# for https://github.com/localgod/catalyst/issues/554 are pending review. Flip
-# CATALYST_REPO back to localgod/catalyst once the fixes land upstream.
+# Canonical source is AndriyKalashnykov/catalyst (the maintained fork; upstream
+# localgod/catalyst is inactive — localgod#570 closed). That is now the default
+# in scripts/fetch-catalyst.sh + Dockerfile, so no CATALYST_REPO override here.
 fetch-catalyst:
-	@CATALYST_REPO=https://github.com/AndriyKalashnykov/catalyst.git bash scripts/fetch-catalyst.sh
+	@bash scripts/fetch-catalyst.sh
 
 #clean: @ Remove build artefacts (node_modules, coverage, vendored catalyst, build/, dist/)
 clean:
@@ -193,12 +193,10 @@ static-check: lint vulncheck trivy-fs mermaid-lint
 	@echo "Static check passed."
 
 #image-build: @ Build Docker image (pinned CATALYST_REF)
-# CATALYST_REPO mirrors the fetch-catalyst override while upstream PRs are
-# pending (see issue #554 on localgod/catalyst). Flip back to the Dockerfile
-# default (localgod/catalyst.git) once the fixes land upstream.
+# Canonical source is the maintained fork (upstream localgod/catalyst inactive);
+# it is the Dockerfile ARG CATALYST_REPO default, so no --build-arg override.
 image-build: require-docker
 	@docker buildx build --load \
-		--build-arg CATALYST_REPO=https://github.com/AndriyKalashnykov/catalyst.git \
 		--build-arg CATALYST_REF=$(CATALYST_REF) \
 		-t $(DOCKER_IMAGE):$(DOCKER_TAG) \
 		$(if $(filter-out dev,$(DOCKER_TAG)),-t $(DOCKER_IMAGE):latest,) .

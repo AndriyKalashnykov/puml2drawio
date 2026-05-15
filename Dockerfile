@@ -3,7 +3,8 @@ ARG NODE_VERSION=24-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884
 
 FROM node:${NODE_VERSION} AS catalyst-builder
 RUN apk add --no-cache git
-ARG CATALYST_REPO=https://github.com/localgod/catalyst.git
+# Canonical source: the maintained fork (upstream localgod/catalyst is inactive).
+ARG CATALYST_REPO=https://github.com/AndriyKalashnykov/catalyst.git
 ARG CATALYST_REF
 WORKDIR /build
 RUN test -n "${CATALYST_REF}" || (echo 'CATALYST_REF build-arg is required' >&2 && exit 1)
