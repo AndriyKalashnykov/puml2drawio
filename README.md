@@ -3,9 +3,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-brightgreen.svg)](https://opensource.org/licenses/MIT)
 [![Renovate enabled](https://img.shields.io/badge/renovate-enabled-brightgreen.svg)](https://app.renovatebot.com/dashboard#github/andriykalashnykov/puml2drawio)
 
-# puml2drawio
+# puml2drawio — PlantUML C4 → draw.io converter
 
-Dockerized CLI that converts PlantUML C4 diagrams (`.puml`) to draw.io XML (`.drawio`). Designed to drop into CI pipelines that commit PlantUML sources and want draw.io output rendered or committed back downstream. Wraps the [catalyst](https://github.com/AndriyKalashnykov/catalyst) JavaScript library, vendored at a pinned release tag (`CATALYST_REF`); Renovate tracks new catalyst tags via the `github-tags` datasource.
+Converts PlantUML C4 diagrams (`.puml`) to editable draw.io XML (`.drawio`), built to drop into CI pipelines that commit PlantUML sources and want draw.io output committed back. The **user surface** takes a file, directory (recursed), or stdin, wraps the [catalyst](https://github.com/AndriyKalashnykov/catalyst) library (vendored at a pinned `CATALYST_REF` tag, Renovate-tracked via `github-tags`) with an [elkjs](https://github.com/kieler/elkjs) re-layout pass, and ships as both a `docker run` CLI and a reusable GitHub Action; the **maintainer surface** covers a multi-arch GHCR image (Trivy-scanned, cosign keyless-signed), a three-layer Vitest + Docker e2e test pyramid, and an `mise`-pinned toolchain with Renovate-managed dependencies.
 
 ```mermaid
 flowchart LR
