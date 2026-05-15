@@ -17,7 +17,12 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
+  # actions: write — delete workflow runs/caches.
+  # contents: read — cleanup-caches calls `gh api repos/<repo>/branches/<b>`;
+  # without it the branch-existence probe silently fails on private repos
+  # (no-op on public, but the canonical template requires both).
   actions: write
+  contents: read
 
 jobs:
   cleanup-runs:

@@ -26,17 +26,18 @@ Data-flow view of a conversion: PlantUML source enters via stdin, a file path, o
 |-----------|------------|-----------|
 | Language | Node.js 24 (ES modules) | catalyst is JS — same runtime keeps the wrapper a thin shim, no FFI |
 | CLI parser | yargs | layered flags + env-var precedence + auto help/version |
-| Conversion engine | [localgod/catalyst](https://github.com/localgod/catalyst) (vendored at pinned SHA, currently a fork carrying upstream PRs) | only mature OSS PlantUML-C4 → drawio renderer; pinning by SHA isolates the wrapper from upstream breakage |
+| Conversion engine | [AndriyKalashnykov/catalyst](https://github.com/AndriyKalashnykov/catalyst) (maintained fork; vendored at a pinned release tag) | only mature OSS PlantUML-C4 → drawio renderer; pinning by tag isolates the wrapper from upstream breakage |
 | Layout engine | [elkjs](https://github.com/kieler/elkjs) (post-processor) | dense container diagrams need more than catalyst's built-in dagre — ELK's `layered` algorithm handles nested boundaries |
+| XML parsing | [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser) | parses & re-emits drawio XML in the elkjs re-layout post-processor (`src/layout-drawio.mjs`) |
 | Container base | `node:24-alpine` (non-root `app` user, npm/npx/corepack/yarn stripped) | minimal attack surface; stripped tools eliminate HIGH CVEs in their bundled `minimatch`/`tar` |
-| Registry | GitHub Container Registry (GHCR), multi-arch `linux/amd64` + `linux/arm64` | free for OSS, native OIDC for cosign |
+| Registry | GitHub Container Registry (GHCR), multi-arch `linux/amd64` + `linux/arm64` (published on `v*` tag pushes only) | free for OSS, native OIDC for cosign |
 | Static analysis | [hadolint](https://github.com/hadolint/hadolint) (Dockerfile) + [shellcheck](https://www.shellcheck.net/) (scripts) | catches Dockerfile + shell anti-patterns in `make static-check` |
 | CVE scans | [Trivy](https://trivy.dev/) — filesystem (`trivy fs`) + image (`aquasecurity/trivy-action`) | CRITICAL/HIGH blocking; image scan runs before multi-arch publish |
 | Diagram lint | [`minlag/mermaid-cli`](https://github.com/mermaid-js/mermaid-cli) (Docker) | validates README + CLAUDE.md Mermaid blocks render before commit; broken diagrams silently break GitHub homepage rendering |
 | Signing | [cosign](https://docs.sigstore.dev/cosign/overview/) keyless OIDC on tag pushes | supply-chain signature without long-lived keys; replaces buildkit in-manifest attestations (which break GHCR's "OS / Arch" tab) |
 | Tests | [Vitest](https://vitest.dev/) (unit + integration) + Docker e2e + shell-driven Action shim test | three-layer pyramid; 80% v8 coverage threshold |
 | Local CI runner | [act](https://github.com/nektos/act) (`make ci-run`) | exercise the workflow against the local checkout before push; pinned via mise |
-| Version manager | [mise](https://mise.jdx.dev/) — `.mise.toml` single source of truth; [`jdx/mise-action`](https://github.com/jdx/mise-action) in CI for tool parity | one declaration, two runners (local + GitHub); avoids per-tool installers and PATH-drift bugs |
+| Version manager | [mise](https://mise.jdx.dev/) — `.nvmrc` is the single Node source (mise reads it via `idiomatic_version_file_enable_tools`); `.mise.toml` pins hadolint/act/trivy/shellcheck; [`jdx/mise-action`](https://github.com/jdx/mise-action) in CI for parity | one Node declaration shared by mise + setup-node; avoids per-tool installers and PATH/version-drift bugs |
 
 ## Quick Start
 
@@ -207,7 +208,7 @@ Only **non-empty** inputs are forwarded to the CLI (`scripts/action-entrypoint.s
 | [Docker](https://www.docker.com/) | latest | Image build + image-based tests + mermaid-lint |
 | [Node.js](https://nodejs.org/) | 24 (from `.nvmrc`) | Runtime for CLI + Vitest (auto-installed by mise) |
 | [pnpm](https://pnpm.io/) | per `packageManager` in `package.json` | Wrapper dependency management (auto-enabled via corepack) |
-| [mise](https://mise.jdx.dev/) | latest | Installs Node 24, hadolint, act, trivy, shellcheck per `.mise.toml` (auto-installed by `make deps`) |
+| [mise](https://mise.jdx.dev/) | latest | Installs Node (from `.nvmrc`) + hadolint, act, trivy, shellcheck (from `.mise.toml`); auto-installed by `make deps` |
 
 One-shot setup:
 
@@ -215,14 +216,14 @@ One-shot setup:
 make deps
 ```
 
-First run installs mise to `~/.local/bin` and exits, asking for shell activation. The second run installs everything pinned in `.mise.toml` (Node, hadolint, act, trivy, shellcheck), enables pnpm via corepack, and builds the vendored catalyst.
+First run installs mise to `~/.local/bin` and exits, asking for shell activation. The second run installs the mise-managed tools (Node from `.nvmrc`; hadolint, act, trivy, shellcheck from `.mise.toml`), enables pnpm via corepack, and builds the vendored catalyst.
 
 ## Architecture
 
-The project is a thin wrapper around catalyst — the wrapper itself is not a fork. `CATALYST_REF` does currently pin a fork's SHA (`AndriyKalashnykov/catalyst`, carrying unmerged upstream PRs); the manager flips back to `localgod/catalyst` once those PRs merge.
+The project is a thin wrapper around catalyst — the wrapper itself is not a fork. `CATALYST_REF` pins a release **tag** of the maintained fork [`AndriyKalashnykov/catalyst`](https://github.com/AndriyKalashnykov/catalyst) (upstream `localgod/catalyst` is inactive). Renovate tracks the fork's tags via the `github-tags` datasource.
 
-- **`CATALYST_REF`** — file holding the pinned commit SHA of the tracked catalyst repo (fork while upstream PRs are open, upstream once they merge). Renovate tracks `main` of whichever repo the `customManagers` rule names; the per-package rule disables automerge for catalyst bumps because they can be API-affecting.
-- **`scripts/fetch-catalyst.sh`** — clones the pinned SHA into `vendor/catalyst/`, runs `npm ci`, transiently installs `typescript@~5.7` when `tsc` isn't already present (upstream catalyst's build script is `tsc` but typescript isn't in its devDependencies), runs `npm run build`, then **wipes `node_modules/` and reinstalls with `--omit=dev --ignore-scripts`** (`npm prune` leaves transitive devDep trees behind on nested deps, shipping HIGH CVEs into the image). Idempotent; skipped when `vendor/catalyst/` already matches `CATALYST_REF` and has `dist/`.
+- **`CATALYST_REF`** — file holding the pinned release tag (e.g. `v1.3.0`) of the maintained fork. Renovate's `customManagers` rule extracts it via `github-tags`; the per-package rule disables automerge for catalyst bumps because they can be API-affecting.
+- **`scripts/fetch-catalyst.sh`** — clones the pinned ref into `vendor/catalyst/`, runs `npm ci`, transiently installs `typescript@~5.7` when `tsc` isn't already present (upstream catalyst's build script is `tsc` but typescript isn't in its devDependencies), runs `npm run build`, then **wipes `node_modules/` and reinstalls with `--omit=dev --ignore-scripts`** (`npm prune` leaves transitive devDep trees behind on nested deps, shipping HIGH CVEs into the image). Idempotent; skipped when `vendor/catalyst/` already matches `CATALYST_REF` and has `dist/`.
 - **`src/runner.mjs`** — yargs-based dispatch. Three modes: stdin (`-`), single file, directory (recursed for `*.puml`). In directory mode, `-o` is required; output mirrors the input tree.
 - **`src/options.mjs`** — pure option resolution, three-tier precedence: flag → env var → default. Returns `Object.freeze(...)`.
 - **`src/convert.mjs`** — dynamically imports catalyst from `vendor/catalyst/dist/catalyst.mjs` so pure-logic tests run without the vendored build.
@@ -270,7 +271,7 @@ Run `make help` to see every target.
 
 | Target | Description |
 |--------|-------------|
-| `make deps` | Install mise-managed Node, pnpm, and vendored catalyst |
+| `make deps` | Install mise-managed tools (node, hadolint, act, trivy, shellcheck), pnpm and build vendored catalyst |
 | `make fetch-catalyst` | Re-clone/build catalyst at the pinned `CATALYST_REF` (idempotent) |
 | `make build` | Install deps and build Docker image |
 | `make image-build` | Build Docker image only |
@@ -288,6 +289,7 @@ Run `make help` to see every target.
 | `make puml-png` | Render PUML → PNG via `plantuml/plantuml` (`INPUT=<file\|dir>` `OUTPUT_DIR=<dir>`; defaults `sample` → `build/png/*.puml.png`) |
 | `make drawio-png` | Render drawio → PNG via `rlespinasse/drawio-export` (`INPUT=<file\|dir>` `OUTPUT_DIR=<dir>`; defaults `build` → `build/png/*.drawio.png`) |
 | `make diagrams-png` | Side-by-side: render every `sample/*.puml` twice (source via plantuml, catalyst-output via drawio-export) for visual diff |
+| `make convert-png` | Convert PUML → drawio **and** render PNG side-by-side in the **same** folder (`INPUT=<dir>` `OUTPUT_DIR=<dir>`; defaults `sample` → `build`, producing `<stem>.drawio` + `<stem>.drawio.png`) |
 | `make drawio-layout INPUT=<file> [OUTPUT=<file>] [DIRECTION=…]` | Re-layout a drawio file via [elkjs](https://github.com/kieler/elkjs). Handles dense diagrams better than catalyst's built-in dagre — use when the auto-layout is cramped. Default output: overwrite in-place. `DIRECTION=` is `AUTO` / `DOWN` / `UP` / `LEFT` / `RIGHT`; `AUTO` (default) picks per diagram — see below |
 
 **`make drawio-layout` — direction selection**
@@ -329,7 +331,8 @@ The effective direction is printed on stderr so logs show which pick was used (`
 | `make test-coverage` | Vitest with v8 coverage (80% thresholds) |
 | `make integration-test` | Vitest integration tests — real catalyst via `vendor/catalyst/dist/`, real fs; tens of seconds |
 | `make action-test` | Shell test for `scripts/action-entrypoint.sh` (INPUT_* → CLI arg mapping) |
-| `make e2e` | End-to-end: convert `sample/example.puml` via built Docker image, assert output contains `mxGraphModel`; minutes on first build |
+| `make e2e` | End-to-end (stdin mode): convert `sample/example.puml` via built Docker image, assert the output carries `<mxfile` + `<mxGraphModel` + `<mxCell` **and** all three C4 labels (User, API, Database); minutes on first build |
+| `make e2e-batch` | End-to-end (batch/bind-mount mode): convert `sample/` via the built image with `-v $PWD`, assert each `.drawio` carries `<mxGraphModel`, is host-owned (non-root UID write), and freshly written |
 | `make lint` | `node --check` JS + hadolint (Dockerfile) + shellcheck (scripts) |
 | `make lint-docker` | Hadolint only |
 | `make lint-shell` | Shellcheck on `scripts/*.sh` |
@@ -365,7 +368,7 @@ One SHA-pinned workflow — `.github/workflows/ci.yml` — covers everything. Tr
 | `build` | `changes`, `static-check` | `make build` — Docker image build validation |
 | `test` | `changes`, `static-check` | Vitest with v8 coverage (80% thresholds), artifact upload |
 | `integration-test` | `changes`, `static-check` | `make integration-test` + `make action-test` — vitest against real catalyst + fs, plus shell test of the Action entrypoint shim |
-| `e2e` | `changes`, `build`, `test` | `make e2e` — convert `sample/example.puml` via built image, assert output contains `mxGraphModel` |
+| `e2e` | `changes`, `build`, `test` | `make e2e` (stdin: assert `<mxfile`/`<mxGraphModel`/`<mxCell` + 3 C4 labels) **and** `make e2e-batch` (bind-mount batch: host-owned, fresh `.drawio` with `<mxGraphModel`) |
 | `docker` | `changes`, `static-check`, `build`, `test` | Single-arch scan build → Trivy image scan (CRITICAL/HIGH blocking) → `--version` smoke test → multi-arch `linux/amd64,linux/arm64` build (push on tags only) → cosign keyless OIDC signing (tags only) → multi-arch manifest verification |
 | `ci-pass` | all above | Aggregates `needs.*.result`; fails on `failure` or `cancelled`; treats `skipped` as OK so doc-only changes report green. Single repository-ruleset gate. |
 

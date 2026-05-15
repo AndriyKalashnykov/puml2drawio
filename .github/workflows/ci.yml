@@ -83,6 +83,16 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+      # Two provisioners, one Node source of truth. `.mise.toml` no longer
+      # pins `node`; the idiomatic-version-file setting makes mise read
+      # `.nvmrc`, exactly like setup-node's `node-version-file: '.nvmrc'`.
+      # So both paths resolve the same Node — no drift. The split is
+      # intentional: mise-action provides the static-analysis tools
+      # (hadolint, trivy, shellcheck) used only by `make static-check`;
+      # setup-node provides the pnpm dependency cache. Downstream jobs
+      # (build/test/integration-test/e2e) don't need the mise tools, so
+      # they run setup-node only — `make deps` skips `mise install` when
+      # mise is absent.
       - name: Set up pnpm
         uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
 
@@ -124,7 +134,7 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: '**/pnpm-lock.yaml'
 
-      - name: Build image
+      - name: Build
         run: make build
 
   test:
@@ -182,7 +192,7 @@ jobs:
       - name: Integration test
         run: make integration-test
 
-      - name: Action entrypoint test
+      - name: Run action entrypoint test
         run: make action-test
 
   e2e:
@@ -205,8 +215,15 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: '**/pnpm-lock.yaml'
 
-      - name: E2E test
+      - name: Run end-to-end tests
         run: make e2e
+
+      # Docker BATCH path (bind mount + non-root host-owned writes) that the
+      # stdin-mode `make e2e` cannot cover. Invoked here directly on the real
+      # runner — NOT via `make ci-run`/act (nested bind mounts are unreliable
+      # there). Closes the long-standing batch-mode e2e coverage gap.
+      - name: Run end-to-end batch test
+        run: make e2e-batch
 
   docker:
     needs: [changes, static-check, build, test]
@@ -244,7 +261,6 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=sha
           flavor: |
             latest=${{ startsWith(github.ref, 'refs/tags/') }}
 

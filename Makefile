@@ -50,7 +50,7 @@ PNPM_INSTALL := pnpm install $(if $(CI),--frozen-lockfile,)
 help:
 	@echo "Usage: make COMMAND"
 	@echo "Commands:"
-	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST) | tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-22s\033[0m %s\n", $$1, $$2}'
+	@grep -E '[a-zA-Z\.\-]+:.*?@ .*$$' $(MAKEFILE_LIST) | tr -d '#' | awk 'BEGIN {FS = ":.*?@ "}; {printf "\033[32m%-24s\033[0m %s\n", $$1, $$2}'
 
 #deps: @ Install mise-managed tools (node, hadolint, act, trivy, shellcheck), pnpm and build vendored catalyst
 deps:
@@ -195,6 +195,11 @@ static-check: lint vulncheck trivy-fs mermaid-lint
 #image-build: @ Build Docker image (pinned CATALYST_REF)
 # Canonical source is the maintained fork (upstream localgod/catalyst inactive);
 # it is the Dockerfile ARG CATALYST_REPO default, so no --build-arg override.
+# Intentionally NOT prerequisite on `deps`: the Dockerfile's catalyst-builder
+# stage clones + builds catalyst from CATALYST_REF itself, so the host's
+# vendor/ (produced by `make deps` → fetch-catalyst) is not needed to build
+# the image. `make build` runs `deps` first only so host-side unit/integration
+# tests have vendor/; the image build is self-contained.
 image-build: require-docker
 	@docker buildx build --load \
 		--build-arg CATALYST_REF=$(CATALYST_REF) \
@@ -246,6 +251,23 @@ diagrams-png: image-build
 		DOCKER_IMAGE=$(DOCKER_IMAGE) DOCKER_TAG=$(DOCKER_TAG) \
 		bash scripts/diagrams-png.sh
 
+#convert-png: @ Convert PUML → drawio AND render PNG side-by-side in the SAME folder (INPUT=<dir> OUTPUT_DIR=<dir>, defaults sample → build)
+# One command, both artefacts in OUTPUT_DIR: <stem>.drawio + <stem>.drawio.png.
+# PNG rendering needs the Electron-based drawio-export image (the node runtime
+# image has no drawio binary), so it runs as a second containerised pass over
+# the just-written .drawio files. INPUT is a directory of .puml (batch/flat;
+# drawio-export scans OUTPUT_DIR at depth 1, matching the sample layout).
+convert-png: image-build
+	@mkdir -p build "$(or $(OUTPUT_DIR),build)"
+	@docker run --rm --user "$$(id -u):$$(id -g)" \
+		-v "$(PWD):/work" -w /work \
+		$(DOCKER_IMAGE):$(DOCKER_TAG) "$(or $(INPUT),sample)" -o "$(or $(OUTPUT_DIR),build)/"
+	@INPUT=$(or $(OUTPUT_DIR),build) \
+		OUTPUT_DIR=$(or $(OUTPUT_DIR),build) \
+		DRAWIO_EXPORT_IMAGE=rlespinasse/drawio-export:$(DRAWIO_EXPORT_TAG) \
+		ALPINE_IMAGE=alpine:$(ALPINE_VERSION) \
+		bash scripts/drawio-to-png.sh
+
 #image-push: @ Tag and push image to $(DOCKER_REGISTRY)/$(DOCKER_REPO)
 image-push: image-build
 	@if [ -n "$${GH_ACCESS_TOKEN:-}" ] && echo "$(DOCKER_REGISTRY)" | grep -q "ghcr.io"; then \
@@ -276,6 +298,28 @@ e2e: image-build
 		done && \
 		mv "$$out" build/sample.drawio
 	@echo "E2E passed: build/sample.drawio ($$(wc -c < build/sample.drawio) bytes) carries <mxfile + <mxGraphModel + <mxCell and all three sample C4 labels (User, API, Database)"
+
+#e2e-batch: @ E2E batch test — convert sample/ via built image with bind mount, assert structure + host-owned + fresh output
+# Exercises the Docker BATCH path (dir input, -v $PWD bind mount, non-root
+# USER 10001 writing host-owned files) that `make e2e` (stdin mode) cannot.
+# NOT run under act (`make ci-run`) — nested-container bind mounts are
+# unreliable there; the CI `e2e` job invokes this directly on a real runner.
+e2e-batch: image-build
+	@rm -rf build/e2e-batch && mkdir -p build/e2e-batch
+	@before=$$(date +%s); sleep 1; \
+	docker run --rm --user "$$(id -u):$$(id -g)" \
+		-v "$(PWD):/work" -w /work \
+		$(DOCKER_IMAGE):$(DOCKER_TAG) sample -o build/e2e-batch/ ; \
+	count=$$(find build/e2e-batch -name '*.drawio' | wc -l); \
+	[ "$$count" -ge 1 ] || { echo "FAIL: batch mode produced no .drawio"; exit 1; }; \
+	for f in build/e2e-batch/*.drawio; do \
+		grep -q '<mxGraphModel' "$$f" || { echo "FAIL: $$f missing <mxGraphModel"; exit 1; }; \
+		owner=$$(stat -c '%u' "$$f"); \
+		[ "$$owner" = "$$(id -u)" ] || { echo "FAIL: $$f not host-owned (uid $$owner vs $$(id -u)) — bind-mount UID regression"; exit 1; }; \
+		mtime=$$(stat -c '%Y' "$$f"); \
+		[ "$$mtime" -ge "$$before" ] || { echo "FAIL: $$f mtime predates run — stale/unwritten"; exit 1; }; \
+	done; \
+	echo "E2E batch passed: $$count .drawio in build/e2e-batch/ — all host-owned, fresh, carry <mxGraphModel"
 
 #ci: @ Run full local CI pipeline (static checks + tests + integration + e2e)
 ci: deps static-check test integration-test action-test e2e
@@ -328,5 +372,5 @@ release-floating-tags:
 .PHONY: help deps deps-check require-docker fetch-catalyst clean \
 	build test test-coverage integration-test action-test \
 	lint lint-docker lint-shell vulncheck trivy-fs mermaid-lint static-check \
-	image-build image-run image-sample image-push image-stop puml-png drawio-png drawio-layout diagrams-png e2e \
+	image-build image-run image-sample image-push image-stop puml-png drawio-png drawio-layout diagrams-png convert-png e2e e2e-batch \
 	ci ci-run renovate-validate release release-floating-tags
