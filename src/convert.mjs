@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { applyDarkTheme } from './theme-drawio.mjs'
 
 let catalystModule
 
@@ -12,7 +13,10 @@ async function loadCatalyst() {
 
 export async function convertString(puml, options) {
   const { Catalyst } = await loadCatalyst()
-  return Catalyst.convert(puml, { ...options })
+  const drawio = await Catalyst.convert(puml, { ...options })
+  // Theme is a wrapper-side post-process — catalyst v1.3.0 has no theme
+  // option. 'light' (default) is catalyst's baked palette, unchanged.
+  return options?.theme === 'dark' ? applyDarkTheme(drawio) : drawio
 }
 
 export async function convertFile(inputPath, outputPath, options) {

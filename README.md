@@ -113,6 +113,7 @@ Useful flags in folder mode:
 | `--fail-fast` | Stop at the first failing file (default: attempt all, exit 1 at the end listing failures) |
 | `--summary` | Emit a JSON `{total,converted,failed,files[]}` report — to stdout in batch/glob, to stderr in single/stdin (drawio stays uncorrupted on stdout). Written even on partial failure, before the non-zero exit |
 | `-q`, `--quiet` | Suppress per-file progress lines on stderr |
+| `--theme dark` | Recolor output to the official [C4-PlantUML `C4_superhero`](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/themes/puml-theme-C4_superhero.puml) dark theme (default `light` = catalyst's C4_blue, unchanged). Env: `CATALYST_THEME` |
 | `--layout-direction=LR` | Horizontal layout (`TB`/`BT`/`LR`/`RL`; default `TB`) |
 
 `-o` is **required** when the input is a directory — without it the CLI exits code 2 with `error: --output is required when input is a directory`.
@@ -198,6 +199,7 @@ Behind the scenes, the Action runs the published GHCR image (`docker://ghcr.io/a
 | `ranksep` | no | catalyst default | Rank separation in px |
 | `marginx` | no | catalyst default | X margin in px |
 | `marginy` | no | catalyst default | Y margin in px |
+| `theme` | no | `light` | `light` (catalyst C4_blue) \| `dark` (official C4-PlantUML C4_superhero) |
 | `fail-fast` | no | `'false'` | Stop at the first batch conversion error |
 | `quiet` | no | `'false'` | Suppress per-file progress output |
 | `summary` | no | `'false'` | Emit a JSON conversion summary (batch/glob → stdout; single/stdin → stderr) |
@@ -261,6 +263,7 @@ Options:
       --ranksep            Rank separation in px (default: 120)
       --marginx            X margin in px (default: 40)
       --marginy            Y margin in px (default: 40)
+      --theme              Color theme: light | dark (default: light)
       --fail-fast          Stop on first error in batch/glob mode
       --summary            Emit JSON summary (batch/glob: stdout; single/stdin: stderr)
   -q, --quiet              Suppress per-file progress

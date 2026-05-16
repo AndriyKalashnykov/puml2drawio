@@ -56,4 +56,18 @@ describe('resolveOptions', () => {
     expect(resolveOptions({ nodesep: undefined }, env).nodesep).toBe(7)
     expect(resolveOptions({ nodesep: null }, env).nodesep).toBe(7)
   })
+
+  test('theme defaults to light', () => {
+    expect(resolveOptions({}, {}).theme).toBe('light')
+  })
+
+  test('theme: flag > env > default, case-insensitive', () => {
+    expect(resolveOptions({ theme: 'DARK' }, {}).theme).toBe('dark')
+    expect(resolveOptions({}, { [ENV_MAP.theme]: 'dark' }).theme).toBe('dark')
+    expect(resolveOptions({ theme: 'light' }, { [ENV_MAP.theme]: 'dark' }).theme).toBe('light')
+  })
+
+  test('invalid theme throws', () => {
+    expect(() => resolveOptions({ theme: 'solarized' }, {})).toThrow(/Invalid theme/)
+  })
 })

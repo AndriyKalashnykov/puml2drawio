@@ -15,6 +15,7 @@ set --
 [ -n "${INPUT_RANKSEP:-}" ] && set -- "$@" --ranksep "${INPUT_RANKSEP}"
 [ -n "${INPUT_MARGINX:-}" ] && set -- "$@" --marginx "${INPUT_MARGINX}"
 [ -n "${INPUT_MARGINY:-}" ] && set -- "$@" --marginy "${INPUT_MARGINY}"
+[ -n "${INPUT_THEME:-}" ] && set -- "$@" --theme "${INPUT_THEME}"
 [ "${INPUT_FAIL_FAST:-false}" = "true" ] && set -- "$@" --fail-fast
 [ "${INPUT_QUIET:-false}" = "true" ] && set -- "$@" --quiet
 [ "${INPUT_SUMMARY:-false}" = "true" ] && set -- "$@" --summary

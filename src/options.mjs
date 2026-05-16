@@ -11,7 +11,8 @@ export const DEFAULTS = Object.freeze({
   edgesep: 10,
   ranksep: 120,
   marginx: 40,
-  marginy: 40
+  marginy: 40,
+  theme: 'light'
 })
 
 export const ENV_MAP = Object.freeze({
@@ -20,11 +21,15 @@ export const ENV_MAP = Object.freeze({
   edgesep: 'CATALYST_EDGESEP',
   ranksep: 'CATALYST_RANKSEP',
   marginx: 'CATALYST_MARGINX',
-  marginy: 'CATALYST_MARGINY'
+  marginy: 'CATALYST_MARGINY',
+  theme: 'CATALYST_THEME'
 })
 
 const NUMERIC_KEYS = new Set(['nodesep', 'edgesep', 'ranksep', 'marginx', 'marginy'])
 const VALID_DIRECTIONS = new Set(['TB', 'BT', 'LR', 'RL'])
+// 'light' = catalyst's baked C4_blue palette (unchanged). 'dark' = the
+// official C4-PlantUML C4_superhero theme applied as a post-process.
+const VALID_THEMES = new Set(['light', 'dark'])
 
 function coerceNumber(key, raw) {
   const num = typeof raw === 'number' ? raw : Number(raw)
@@ -38,6 +43,14 @@ function coerceDirection(raw) {
   const v = String(raw).toUpperCase()
   if (!VALID_DIRECTIONS.has(v)) {
     throw new Error(`Invalid layoutDirection: ${raw} (expected one of ${[...VALID_DIRECTIONS].join(', ')})`)
+  }
+  return v
+}
+
+function coerceTheme(raw) {
+  const v = String(raw).toLowerCase()
+  if (!VALID_THEMES.has(v)) {
+    throw new Error(`Invalid theme: ${raw} (expected one of ${[...VALID_THEMES].join(', ')})`)
   }
   return v
 }
@@ -60,6 +73,8 @@ export function resolveOptions(flags = {}, env = process.env) {
       out[key] = coerceNumber(key, raw)
     } else if (key === 'layoutDirection') {
       out[key] = coerceDirection(raw)
+    } else if (key === 'theme') {
+      out[key] = coerceTheme(raw)
     } else {
       out[key] = raw
     }
