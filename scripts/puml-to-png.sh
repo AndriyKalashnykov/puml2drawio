@@ -39,7 +39,18 @@ if [ ${#PUML_FILES[@]} -eq 0 ]; then
   exit 1
 fi
 
-docker run --rm --user "$UID_GID" -v "$PWD:/data" -w /data \
+# `-e JAVA_TOOL_OPTIONS=-Duser.home=/tmp`: the container runs as
+# `--user $UID:$GID`, a UID with no /etc/passwd entry. OpenJDK's getpwuid()
+# then fails and the `user.home` system property falls back to the literal
+# string "?", so the JVM font-info cache (`${user.home}/.java/fonts/...`)
+# is written to a `?/` dir in the bind-mounted repo root. Java derives
+# `user.home` from getpwuid, NOT from $HOME, so `-e HOME=/tmp` does NOT
+# fix this (empirically verified — it still littered). Overriding
+# `-Duser.home=/tmp` via JAVA_TOOL_OPTIONS is the mechanism the JVM honours;
+# /tmp is world-writable (1777) so the cache lands there, ephemeral and
+# unmounted. Verified: `./?` gone, PNG renders identically (230x519).
+docker run --rm --user "$UID_GID" -e JAVA_TOOL_OPTIONS=-Duser.home=/tmp \
+  -v "$PWD:/data" -w /data \
   "$PLANTUML_IMAGE" -tpng -o "/data/$OUTPUT_DIR" "${PUML_FILES[@]}"
 
 # plantuml emits `<stem>.png`; rename to `<stem>.puml.png` so drawio-sourced
