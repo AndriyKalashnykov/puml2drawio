@@ -4,12 +4,12 @@
       <root>
         <mxCell id="0"/>
         <mxCell id="1" parent="0"/>
-        <object placeholders="1" c4Name="User" c4Type="Person" c4Technology="A user of the system" c4Description="" label="&lt;div style=&quot;font-size:16px;font-weight:bold;&quot;&gt;%c4Name%&lt;/div&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;div style=&quot;font-size:11px;color:#cccccc;&quot;&gt;%c4Description%&lt;/div&gt;" id="user">
+        <object placeholders="1" c4Name="User" c4Type="Person" c4Technology="" c4Description="A user of the system" label="&lt;div style=&quot;font-size:16px;font-weight:bold;&quot;&gt;%c4Name%&lt;/div&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;div style=&quot;font-size:11px;color:#cccccc;&quot;&gt;%c4Description%&lt;/div&gt;" id="user">
           <mxCell style="shape=mxgraph.c4.person2;align=center;html=1;labelBackgroundColor=none;fillColor=#08427B;fontColor=#ffffff;strokeColor=#073B6F;verticalAlign=top;whiteSpace=wrap;metaEdit=1;resizable=1" parent="1" vertex="1">
             <mxGeometry as="geometry" height="140" width="220" x="12" y="12"/>
           </mxCell>
         </object>
-        <object placeholders="1" c4Name="API" c4Type="System" c4Technology="Handles incoming requests" c4Description="" label="&lt;div style=&quot;font-size:16px;font-weight:bold;&quot;&gt;%c4Name%&lt;/div&gt;&lt;div&gt;[%c4Type%:%c4Technology%]&lt;/div&gt;&lt;div style=&quot;font-size:11px;color:#cccccc;&quot;&gt;%c4Description%&lt;/div&gt;" id="api">
+        <object placeholders="1" c4Name="API" c4Type="System" c4Technology="" c4Description="Handles incoming requests" label="&lt;div style=&quot;font-size:16px;font-weight:bold;&quot;&gt;%c4Name%&lt;/div&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;div style=&quot;font-size:11px;color:#cccccc;&quot;&gt;%c4Description%&lt;/div&gt;" id="api">
           <mxCell style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=none;fillColor=#1061B0;fontColor=#ffffff;align=center;verticalAlign=top;arcSize=10;strokeColor=#0D5091;metaEdit=1;resizable=1" parent="1" vertex="1">
             <mxGeometry as="geometry" height="140" width="220" x="12" y="272"/>
           </mxCell>
@@ -19,13 +19,13 @@
             <mxGeometry as="geometry" height="120" width="200" x="22" y="532"/>
           </mxCell>
         </object>
-        <object placeholders="1" c4Name="Uses" c4Type="Relationship" c4Technology="" c4Description="HTTPS" label="&lt;div style=&quot;text-align: left;&quot;&gt;&lt;div style=&quot;text-align: center;font-weight:bold;&quot;&gt;%c4Description%&lt;/div&gt;&lt;div style=&quot;text-align: center&quot;&gt;[%c4Technology%]&lt;/div&gt;&lt;/div&gt;">
-          <mxCell style="endArrow=blockThin;html=1;fontSize=10;fontColor=#404040;strokeWidth=1;endFill=1;strokeColor=#828282;elbow=vertical;metaEdit=1;endSize=14;startSize=14;jumpStyle=arc;jumpSize=16;rounded=0;edgeStyle=orthogonalEdgeStyle;entryX=0.5;entryY=1;entryDx=0;entryDy=0" parent="1" edge="1" source="user" target="api">
+        <object placeholders="1" c4Name="Uses" c4Type="Relationship" c4Technology="[HTTPS]" c4Description="" label="&lt;div style=&quot;text-align: center;font-weight:bold;&quot;&gt;%c4Name%&lt;/div&gt;&lt;div style=&quot;text-align: center;&quot;&gt;%c4Technology%&lt;/div&gt;">
+          <mxCell style="endArrow=blockThin;html=1;fontSize=10;fontColor=#404040;strokeWidth=1;endFill=1;strokeColor=#828282;metaEdit=1;endSize=14;startSize=14;jumpStyle=arc;jumpSize=16;rounded=0;edgeStyle=orthogonalEdgeStyle" parent="1" edge="1" source="user" target="api">
             <mxGeometry as="geometry" relative="1"/>
           </mxCell>
         </object>
-        <object placeholders="1" c4Name="Reads/writes" c4Type="Relationship" c4Technology="" c4Description="SQL" label="&lt;div style=&quot;text-align: left;&quot;&gt;&lt;div style=&quot;text-align: center;font-weight:bold;&quot;&gt;%c4Description%&lt;/div&gt;&lt;div style=&quot;text-align: center&quot;&gt;[%c4Technology%]&lt;/div&gt;&lt;/div&gt;">
-          <mxCell style="endArrow=blockThin;html=1;fontSize=10;fontColor=#404040;strokeWidth=1;endFill=1;strokeColor=#828282;elbow=vertical;metaEdit=1;endSize=14;startSize=14;jumpStyle=arc;jumpSize=16;rounded=0;edgeStyle=orthogonalEdgeStyle;entryX=0.5;entryY=1;entryDx=0;entryDy=0" parent="1" edge="1" source="api" target="db">
+        <object placeholders="1" c4Name="Reads/writes" c4Type="Relationship" c4Technology="[SQL]" c4Description="" label="&lt;div style=&quot;text-align: center;font-weight:bold;&quot;&gt;%c4Name%&lt;/div&gt;&lt;div style=&quot;text-align: center;&quot;&gt;%c4Technology%&lt;/div&gt;">
+          <mxCell style="endArrow=blockThin;html=1;fontSize=10;fontColor=#404040;strokeWidth=1;endFill=1;strokeColor=#828282;metaEdit=1;endSize=14;startSize=14;jumpStyle=arc;jumpSize=16;rounded=0;edgeStyle=orthogonalEdgeStyle" parent="1" edge="1" source="api" target="db">
             <mxGeometry as="geometry" relative="1"/>
           </mxCell>
         </object>
