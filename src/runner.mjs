@@ -46,6 +46,17 @@ export function buildParser(argv) {
         'Color theme. "light" (default) = catalyst C4_blue. "dark" = official C4-PlantUML C4_superhero remap (env: CATALYST_THEME)'
     })
     .option('fail-fast', { type: 'boolean', default: false, describe: 'Stop on first batch error' })
+    .option('exclude', {
+      type: 'string',
+      describe:
+        'Comma/space-separated glob(s) of input files to skip in directory/glob batch mode (matched against the collected path AND its basename). Single-file/stdin input is never excluded.'
+    })
+    .option('skip-unsupported', {
+      type: 'boolean',
+      default: false,
+      describe:
+        'Loudly SKIP (warn + count in --summary as "skipped") files catalyst rejects as an unsupported diagram TYPE (C4_Sequence / zero convertible C4 elements) instead of failing the batch. Genuine conversion errors still fail loud. Single-file/stdin still fails loud.'
+    })
     .option('summary', {
       type: 'boolean',
       default: false,
@@ -98,14 +109,41 @@ function globBaseDir(pattern) {
 
 async function emitSummary(stream, files) {
   const converted = files.filter((f) => f.status === 'converted').length
+  const skipped = files.filter((f) => f.status === 'skipped').length
   stream.write(
     JSON.stringify({
       total: files.length,
       converted,
-      failed: files.length - converted,
+      skipped,
+      failed: files.length - converted - skipped,
       files
     }) + '\n'
   )
+}
+
+// catalyst (>= v1.4.1) throws a STABLE sentinel for input it refuses by
+// TYPE (C4_Sequence/dynamic) or because nothing converts — distinct from a
+// genuine conversion error. `--skip-unsupported` keys off these messages
+// only; every other failure still fails loud.
+const UNSUPPORTED_RE =
+  /unsupported C4-PlantUML diagram type|no convertible C4 elements found/i
+function isUnsupportedTypeError(err) {
+  return UNSUPPORTED_RE.test(err && err.message ? err.message : String(err))
+}
+
+// Split a comma/space-separated --exclude string into globs; returns a
+// predicate true when `file` should be skipped. Patterns match the
+// collected path OR its basename, so both `**/sequence-*.puml` and
+// `sequence-leaf-cert-lifecycle.puml` work.
+function makeExcluder(excludeStr) {
+  const pats = String(excludeStr || '')
+    .split(/[,\s]+/)
+    .filter(Boolean)
+  if (pats.length === 0) return () => false
+  return (file) =>
+    pats.some(
+      (p) => path.matchesGlob(file, p) || path.matchesGlob(path.basename(file), p)
+    )
 }
 
 // Shared many-file engine for both directory batch and glob input. `files`
@@ -119,6 +157,7 @@ async function convertMany({
   failFast,
   quiet,
   summary,
+  skipUnsupported,
   stdout,
   stderr
 }) {
@@ -136,6 +175,14 @@ async function convertMany({
       results.push({ input: file, output: target, status: 'converted' })
       if (!quiet) stderr.write(`converted: ${file} -> ${target}\n`)
     } catch (err) {
+      if (skipUnsupported && isUnsupportedTypeError(err)) {
+        // Loud skip: catalyst refuses this file by diagram TYPE (not a
+        // broken file). Reported in --summary as "skipped"; NOT counted
+        // as a failure, so the end-of-batch throw does not fire for it.
+        results.push({ input: file, output: target, status: 'skipped', reason: err.message })
+        stderr.write(`skipped:   ${file}: ${err.message}\n`)
+        continue
+      }
       results.push({ input: file, output: target, status: 'failed', error: err.message })
       errors.push({ file, err })
       stderr.write(`failed:    ${file}: ${err.message}\n`)
@@ -196,22 +243,26 @@ async function runSingle({ input, output, options, outputExt, stdout, stderr, su
 }
 
 async function runBatch(args) {
-  const files = await collectPumlFiles(args.input)
-  if (files.length === 0) {
+  const all = await collectPumlFiles(args.input)
+  if (all.length === 0) {
     throw new Error(`No .puml files found under ${args.input}`)
   }
+  const exclude = makeExcluder(args.exclude)
+  const files = all.filter((f) => !exclude(f))
   await convertMany({ ...args, files, baseDir: args.input })
 }
 
 async function runGlob(args) {
   const matches = []
   for await (const entry of fs.glob(args.pattern)) matches.push(entry)
-  const files = matches
+  const all = matches
     .filter((f) => f.toLowerCase().endsWith('.puml'))
     .sort()
-  if (files.length === 0) {
+  if (all.length === 0) {
     throw new Error(`No .puml files matched glob ${args.pattern}`)
   }
+  const exclude = makeExcluder(args.exclude)
+  const files = all.filter((f) => !exclude(f))
   await convertMany({ ...args, files, baseDir: globBaseDir(args.pattern) })
 }
 
@@ -274,6 +325,8 @@ export async function runCli({
         failFast: parsed.failFast,
         quiet: parsed.quiet,
         summary: parsed.summary,
+        exclude: parsed.exclude,
+        skipUnsupported: parsed.skipUnsupported,
         stdout,
         stderr
       })
@@ -293,6 +346,8 @@ export async function runCli({
         failFast: parsed.failFast,
         quiet: parsed.quiet,
         summary: parsed.summary,
+        exclude: parsed.exclude,
+        skipUnsupported: parsed.skipUnsupported,
         stdout,
         stderr
       })

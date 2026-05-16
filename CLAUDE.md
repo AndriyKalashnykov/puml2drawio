@@ -118,7 +118,7 @@ Git tags use `vX.Y.Z`; the Docker metadata-action strips the `v` to produce bare
 - **TUnit/xUnit/Maven are irrelevant here** — this is Node; tests are Vitest. Portfolio-wide .NET/Java testing rules do not apply.
 - **pnpm-only.** `package.json` sets `packageManager: pnpm@11.1.0`. Never run `npm install` at the wrapper root — it will write `package-lock.json` and cause drift. (Inside `vendor/catalyst/`, npm is used because catalyst itself uses `package-lock.json` upstream.)
 - **Immutability.** `src/options.mjs` returns `Object.freeze(...)`; `convertString` spreads options into a fresh object before passing to catalyst. Preserve this when extending.
-- **Error boundaries.** CLI writes errors to stderr and exits 1 (runtime) or 2 (arg/validation). Batch mode accumulates errors unless `--fail-fast`.
+- **Error boundaries.** CLI writes errors to stderr and exits 1 (runtime) or 2 (arg/validation). Batch mode accumulates errors unless `--fail-fast`. `--exclude '<glob>[,…]'` drops matching inputs before conversion (dir/glob mode; matches path + basename). `--skip-unsupported` loudly skips (warn + `skipped` in `--summary`) files catalyst rejects by diagram **type** (catalyst >= v1.4.1 throws a stable sentinel: `unsupported C4-PlantUML diagram type` / `no convertible C4 elements found`) — every other error still fails loud; single-file/stdin always fails loud.
 - **Dynamic catalyst import.** Keep it dynamic — pure-logic tests must run without `vendor/catalyst/` existing.
 - **Static analysis tools** — the composite `make static-check` gate runs hadolint, shellcheck, pnpm audit, Trivy fs, and `minlag/mermaid-cli` (for Mermaid blocks in markdown). All versions pinned in the Makefile with `# renovate:` comments.
 
