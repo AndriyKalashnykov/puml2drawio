@@ -39,6 +39,12 @@ export function buildParser(argv) {
     .option('ranksep', { type: 'number', describe: 'Rank separation (env: CATALYST_RANKSEP)' })
     .option('marginx', { type: 'number', describe: 'X margin (env: CATALYST_MARGINX)' })
     .option('marginy', { type: 'number', describe: 'Y margin (env: CATALYST_MARGINY)' })
+    .option('theme', {
+      type: 'string',
+      choices: ['light', 'dark'],
+      describe:
+        'Color theme. "light" (default) = catalyst C4_blue. "dark" = official C4-PlantUML C4_superhero remap (env: CATALYST_THEME)'
+    })
     .option('fail-fast', { type: 'boolean', default: false, describe: 'Stop on first batch error' })
     .option('summary', {
       type: 'boolean',
@@ -58,7 +64,8 @@ function flagsFromArgv(argv) {
     edgesep: argv.edgesep,
     ranksep: argv.ranksep,
     marginx: argv.marginx,
-    marginy: argv.marginy
+    marginy: argv.marginy,
+    theme: argv.theme
   }
 }
 

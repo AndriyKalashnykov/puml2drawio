@@ -34,6 +34,9 @@ inputs:
   marginy:
     description: 'Y margin (px)'
     required: false
+  theme:
+    description: 'Color theme: light (catalyst C4_blue, default) | dark (official C4-PlantUML C4_superhero)'
+    required: false
   fail-fast:
     description: 'Stop on first batch conversion error (true | false)'
     required: false
