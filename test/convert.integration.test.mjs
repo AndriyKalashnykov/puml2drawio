@@ -57,23 +57,22 @@ describeIfReady('catalyst integration — end-to-end conversion', () => {
     }
   })
 
-  test('convertString is tolerant of malformed PlantUML (never throws; emits a well-formed empty envelope)', async () => {
-    // Contract lock: catalyst does NOT throw on unparseable C4 — it returns a
-    // valid, near-empty <mxfile>/<mxGraphModel> envelope. The CLI/runner relies
-    // on this (batch mode reports per-file success unless catalyst throws). If
-    // a future CATALYST_REF bump starts throwing on bad input, this fails loudly
-    // instead of the regression surfacing only downstream. Verified empirically
-    // against the pinned ref: garbage input → ~269-byte well-formed envelope.
+  test('convertString FAILS LOUD on unconvertible C4 (no silent empty envelope)', async () => {
+    // Contract lock (updated for CATALYST_REF >= v1.4.1): catalyst now
+    // THROWS on input that parses to zero entities + zero relations
+    // instead of emitting a content-less ~269-byte stub that renders as a
+    // blank image downstream. This is the INTENDED upstream fix (a silent
+    // content-less success is a bug — a strict downstream renderer can
+    // only skip it or emit a blank image). The CLI/runner relies on this
+    // throw: batch mode (runner.mjs) catches per-file, records the
+    // failure, and exits non-zero so callers never ship dead artifacts.
+    // If a future CATALYST_REF bump reverted to the silent stub, this
+    // fails loudly here instead of the regression surfacing only
+    // downstream.
     const garbage = '@startuml\nthis is not valid c4 garbage\n@enduml'
-    let drawio
-    await expect(
-      (async () => {
-        drawio = await convertString(garbage, {})
-      })()
-    ).resolves.not.toThrow()
-    expect(typeof drawio).toBe('string')
-    expect(drawio).toContain('<mxfile')
-    expect(drawio).toContain('<mxGraphModel')
+    await expect(convertString(garbage, {})).rejects.toThrow(
+      /no convertible C4 elements found/,
+    )
   })
 
   test('layout-direction option is honoured by catalyst', async () => {
