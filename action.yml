@@ -41,6 +41,13 @@ inputs:
     description: 'Stop on first batch conversion error (true | false)'
     required: false
     default: 'false'
+  exclude:
+    description: 'Comma/space-separated glob(s) of input files to skip in directory/glob mode (matched against the collected path AND its basename)'
+    required: false
+  skip-unsupported:
+    description: 'Loudly skip files catalyst rejects as an unsupported diagram TYPE (C4_Sequence / zero convertible C4 elements) instead of failing the batch (true | false). Genuine conversion errors still fail.'
+    required: false
+    default: 'false'
   quiet:
     description: 'Suppress per-file progress output (true | false)'
     required: false

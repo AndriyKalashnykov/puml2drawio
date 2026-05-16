@@ -111,7 +111,9 @@ Useful flags in folder mode:
 |------|--------|
 | `--output-ext .xml` | Output extension (default `.drawio`). Batch/glob mode, and single-file mode when `-o` is a directory. Not applied to stdin (no source filename for a stem) |
 | `--fail-fast` | Stop at the first failing file (default: attempt all, exit 1 at the end listing failures) |
-| `--summary` | Emit a JSON `{total,converted,failed,files[]}` report — to stdout in batch/glob, to stderr in single/stdin (drawio stays uncorrupted on stdout). Written even on partial failure, before the non-zero exit |
+| `--exclude '<glob>[,<glob>…]'` | Comma/space-separated glob(s) of input files to skip in directory/glob mode (matched against the collected path **and** its basename). Single-file/stdin is never excluded |
+| `--skip-unsupported` | Loudly SKIP (warn + count in `--summary` as `skipped`) files catalyst rejects as an unsupported diagram **type** (`C4_Sequence` / zero convertible C4 elements) instead of failing the batch. Genuine conversion errors still fail loud; single-file/stdin still fails loud |
+| `--summary` | Emit a JSON `{total,converted,skipped,failed,files[]}` report — to stdout in batch/glob, to stderr in single/stdin (drawio stays uncorrupted on stdout). Written even on partial failure, before the non-zero exit |
 | `-q`, `--quiet` | Suppress per-file progress lines on stderr |
 | `--theme dark` | Recolor output to the official [C4-PlantUML `C4_superhero`](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/themes/puml-theme-C4_superhero.puml) dark theme (default `light` = catalyst's C4_blue, unchanged). Env: `CATALYST_THEME` |
 | `--layout-direction=LR` | Horizontal layout (`TB`/`BT`/`LR`/`RL`; default `TB`) |
@@ -201,6 +203,8 @@ Behind the scenes, the Action runs the published GHCR image (`docker://ghcr.io/a
 | `marginy` | no | catalyst default | Y margin in px |
 | `theme` | no | `light` | `light` (catalyst C4_blue) \| `dark` (official C4-PlantUML C4_superhero) |
 | `fail-fast` | no | `'false'` | Stop at the first batch conversion error |
+| `exclude` | no | — | Comma/space-separated glob(s) of input files to skip in directory/glob mode (matched against the collected path **and** its basename) |
+| `skip-unsupported` | no | `'false'` | Loudly skip files catalyst rejects as an unsupported diagram **type** (`C4_Sequence` / zero convertible C4 elements) instead of failing the batch. Genuine conversion errors still fail |
 | `quiet` | no | `'false'` | Suppress per-file progress output |
 | `summary` | no | `'false'` | Emit a JSON conversion summary (batch/glob → stdout; single/stdin → stderr) |
 
@@ -265,6 +269,8 @@ Options:
       --marginy            Y margin in px (default: 40)
       --theme              Color theme: light | dark (default: light)
       --fail-fast          Stop on first error in batch/glob mode
+      --exclude            Comma/space-separated glob(s) to skip (dir/glob mode)
+      --skip-unsupported   Loudly skip files catalyst rejects by diagram type
       --summary            Emit JSON summary (batch/glob: stdout; single/stdin: stderr)
   -q, --quiet              Suppress per-file progress
       --help, --version

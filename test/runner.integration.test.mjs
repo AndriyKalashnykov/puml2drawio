@@ -504,3 +504,60 @@ describeIfReady('runCli integration — full pipeline through catalyst', () => {
     }
   })
 })
+
+const C4_OK = '@startuml ok\n!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/v2.10.0/C4_Container.puml\nSystem(a, "A")\nSystem(b, "B")\nRel(a, b, "uses")\n@enduml\n'
+const C4_SEQ = '@startuml seq\n!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/v2.10.0/C4_Sequence.puml\nactor "Op" as op\nparticipant "X" as x\nop -> x : go\n@enduml\n'
+
+describeIfReady('runCli — --exclude and --skip-unsupported (catalyst v1.4.1 fail-loud)', () => {
+  test('default: a C4_Sequence file in a batch dir fails the whole batch (fail-loud preserved)', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'p2d-faildef-'))
+    try {
+      await fsp.writeFile(path.join(dir, 'ok.puml'), C4_OK)
+      await fsp.writeFile(path.join(dir, 'sequence-x.puml'), C4_SEQ)
+      const { code, stderr } = await run([dir, '-o', path.join(dir, 'out')])
+      expect(code).toBe(1)
+      expect(stderr).toMatch(/file\(s\) failed to convert/)
+      expect(stderr).toMatch(/unsupported C4-PlantUML diagram type/)
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('--exclude skips matching files (basename glob); the rest convert; exit 0', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'p2d-excl-'))
+    try {
+      await fsp.writeFile(path.join(dir, 'ok.puml'), C4_OK)
+      await fsp.writeFile(path.join(dir, 'sequence-x.puml'), C4_SEQ)
+      const out = path.join(dir, 'out')
+      const { code, stdout } = await run([dir, '-o', out, '--exclude', 'sequence-*.puml', '--summary'])
+      expect(code).toBe(0)
+      const s = JSON.parse(stdout.trim().split('\n').pop())
+      expect(s.total).toBe(1)            // sequence-x.puml excluded before conversion
+      expect(s.converted).toBe(1)
+      expect(fs.existsSync(path.join(out, 'ok.drawio'))).toBe(true)
+      expect(fs.existsSync(path.join(out, 'sequence-x.drawio'))).toBe(false)
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('--skip-unsupported loudly skips the C4_Sequence file; batch still exits 0', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'p2d-skip-'))
+    try {
+      await fsp.writeFile(path.join(dir, 'ok.puml'), C4_OK)
+      await fsp.writeFile(path.join(dir, 'sequence-x.puml'), C4_SEQ)
+      const out = path.join(dir, 'out')
+      const { code, stdout, stderr } = await run([dir, '-o', out, '--skip-unsupported', '--summary'])
+      expect(code).toBe(0)
+      expect(stderr).toMatch(/skipped:\s+.*sequence-x\.puml/)
+      const s = JSON.parse(stdout.trim().split('\n').pop())
+      expect(s.total).toBe(2)
+      expect(s.converted).toBe(1)
+      expect(s.skipped).toBe(1)
+      expect(s.failed).toBe(0)
+      expect(fs.existsSync(path.join(out, 'ok.drawio'))).toBe(true)
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+})

@@ -17,6 +17,8 @@ set --
 [ -n "${INPUT_MARGINY:-}" ] && set -- "$@" --marginy "${INPUT_MARGINY}"
 [ -n "${INPUT_THEME:-}" ] && set -- "$@" --theme "${INPUT_THEME}"
 [ "${INPUT_FAIL_FAST:-false}" = "true" ] && set -- "$@" --fail-fast
+[ -n "${INPUT_EXCLUDE:-}" ] && set -- "$@" --exclude "${INPUT_EXCLUDE}"
+[ "${INPUT_SKIP_UNSUPPORTED:-false}" = "true" ] && set -- "$@" --skip-unsupported
 [ "${INPUT_QUIET:-false}" = "true" ] && set -- "$@" --quiet
 [ "${INPUT_SUMMARY:-false}" = "true" ] && set -- "$@" --summary
 
