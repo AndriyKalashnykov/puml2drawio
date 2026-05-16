@@ -98,7 +98,7 @@ One SHA-pinned workflow — `.github/workflows/ci.yml` — covers everything. On
 4. **`test`** (needs changes + static-check, parallel with build + integration-test) — Vitest + coverage threshold + artifact upload.
 5. **`integration-test`** (needs changes + static-check, parallel with build + test) — `make integration-test` + `make action-test`: runs vitest against real catalyst + fs, plus shell test of the Action entrypoint shim.
 6. **`e2e`** (needs changes + build + test) — `make e2e`: convert `sample/example.puml` via the built image, assert output contains `mxGraphModel`.
-7. **`docker`** (needs changes + static-check + build + test) — hardened publish pipeline: single-arch scan build → Trivy image scan (CRITICAL/HIGH blocking) → `--version` smoke test → multi-arch `linux/amd64,linux/arm64` build (push on tags only) → cosign keyless OIDC signing (tags only) → multi-arch manifest verification. `provenance: false` + `sbom: false` keep the GHCR "OS / Arch" tab functional; cosign provides the supply-chain signature instead of buildkit in-manifest attestations.
+7. **`docker`** (needs changes + static-check + build + test) — hardened publish pipeline: single-arch scan build → Trivy image scan (CRITICAL/HIGH blocking) → `--version` smoke test → multi-arch `linux/amd64,linux/arm64` build (push on tags only) → cosign keyless OIDC signing (tags only) → SPDX SBOM generation (`anchore/sbom-action`) + cosign keyless SBOM **attestation** (tags only) → multi-arch manifest verification. `provenance: false` + `sbom: false` keep the GHCR "OS / Arch" tab functional; cosign provides the supply-chain signature **and** a separate-OCI-ref SPDX SBOM attestation (`cosign verify-attestation` / `cosign download attestation <image>@<digest>`) instead of buildkit in-manifest attestations (which would re-break the GHCR tab).
 8. **`ci-pass`** (needs all above, `if: always()`) — gate job that aggregates `needs.*.result`. Fails on `failure` OR `cancelled`; treats `skipped` as OK so doc-only changes report green. Single branch-protection check; jobs can be added/renamed without updating Settings.
 
 A separate scheduled workflow (`.github/workflows/action-consumer-test.yml`) runs nightly as a self-consumer test: it invokes the action via `uses: ./` against a synthetic PlantUML input and asserts the converted output. Not part of `ci-pass` — it rebuilds the Docker image from source on every run.
@@ -141,7 +141,11 @@ Deferred work. Keep this list current — resolve items or justify why they're s
 
 ### Known gaps
 
-- [ ] **SBOM artifact not published** (forward-looking — trigger: consumer asks "what's in this image?") — `provenance: false` + `sbom: false` is correct for GHCR's "OS / Arch" tab rendering, but consumers currently only get the cosign signature. **Blocked on a placement decision, not effort.** Fact-checked 2026-05-15: the repo publishes git **tags only** — `make release` does `git tag` + `git push`, there is **no** `gh release create` / `softprops/action-gh-release` anywhere and `gh release list` is empty. So the originally-noted "publish as a release asset via `anchore/sbom-action`" is **infeasible as written** (no GitHub Release objects to attach to). The three real options: (a) workflow artifact only (simple, but ephemeral ~90 days, not consumer-facing long-term); (b) introduce GitHub Releases first, then attach the SBOM (a separate feature that changes the release model); (c) `cosign attest`/`cosign attach sbom` as a *separate* OCI ref — NOT buildkit in-manifest, so it does NOT re-break the GHCR OS/Arch tab; aligns with the job's existing cosign keyless signing and is the modern standard. **Trigger to act**: a decision among (a)/(b)/(c). Surfaced 2026-05-14; placement options grounded 2026-05-15.
+None open. (Resolved 2026-05-15: the `?/` font-cache litter — fixed in
+`scripts/puml-to-png.sh` via `JAVA_TOOL_OPTIONS=-Duser.home=/tmp`, PR #83;
+and SBOM publishing — implemented as a separate-OCI-ref SPDX cosign
+attestation in the `docker` job, option (c), `anchore/sbom-action` +
+`cosign attest --type spdxjson`, tag-gated.)
 
 ## Roadmap (nice-to-have)
 
