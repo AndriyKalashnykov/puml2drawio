@@ -51,21 +51,41 @@ assert_args "input + output" \
     "/app/src/cli.mjs diagram.puml --output out.drawio" \
     INPUT_INPUT=diagram.puml INPUT_OUTPUT=out.drawio
 
-assert_args "input + layout flags" \
+# GitHub's container-action runtime injects HYPHENATED input ids
+# (`layout-direction` -> INPUT_LAYOUT-DIRECTION, NOT _underscore_).
+# These cases use the REAL names — they are exactly what would have
+# caught the skip-unsupported bug. An underscore-fallback case follows.
+assert_args "input + layout flags (hyphenated env, real GitHub form)" \
     "/app/src/cli.mjs diagram.puml --layout-direction LR --nodesep 80" \
-    INPUT_INPUT=diagram.puml INPUT_LAYOUT_DIRECTION=LR INPUT_NODESEP=80
+    INPUT_INPUT=diagram.puml 'INPUT_LAYOUT-DIRECTION=LR' INPUT_NODESEP=80
 
-assert_args "fail-fast=true emits --fail-fast" \
+assert_args "fail-fast=true emits --fail-fast (hyphenated env)" \
+    "/app/src/cli.mjs diagram.puml --fail-fast" \
+    INPUT_INPUT=diagram.puml 'INPUT_FAIL-FAST=true'
+
+assert_args "fail-fast=false emits no flag (hyphenated env)" \
+    "/app/src/cli.mjs diagram.puml" \
+    INPUT_INPUT=diagram.puml 'INPUT_FAIL-FAST=false'
+
+assert_args "skip-unsupported=true emits --skip-unsupported (hyphenated env — the bug that shipped)" \
+    "/app/src/cli.mjs diagram.puml --skip-unsupported" \
+    INPUT_INPUT=diagram.puml 'INPUT_SKIP-UNSUPPORTED=true'
+
+assert_args "skip-unsupported=false emits no flag" \
+    "/app/src/cli.mjs diagram.puml" \
+    INPUT_INPUT=diagram.puml 'INPUT_SKIP-UNSUPPORTED=false'
+
+assert_args "exclude forwards --exclude (INPUT_EXCLUDE, no hyphen)" \
+    "/app/src/cli.mjs docs --exclude sequence-*.puml" \
+    INPUT_INPUT=docs 'INPUT_EXCLUDE=sequence-*.puml'
+
+assert_args "underscore form still works (defensive fallback)" \
     "/app/src/cli.mjs diagram.puml --fail-fast" \
     INPUT_INPUT=diagram.puml INPUT_FAIL_FAST=true
 
-assert_args "fail-fast=false emits no flag" \
+assert_args "empty-string INPUT_OUTPUT / output-ext are skipped" \
     "/app/src/cli.mjs diagram.puml" \
-    INPUT_INPUT=diagram.puml INPUT_FAIL_FAST=false
-
-assert_args "empty-string INPUT_OUTPUT / OUTPUT_EXT are skipped" \
-    "/app/src/cli.mjs diagram.puml" \
-    INPUT_INPUT=diagram.puml INPUT_OUTPUT= INPUT_OUTPUT_EXT=
+    INPUT_INPUT=diagram.puml INPUT_OUTPUT= 'INPUT_OUTPUT-EXT='
 
 assert_args "summary=true emits --summary" \
     "/app/src/cli.mjs diagram.puml --summary" \
@@ -75,18 +95,20 @@ assert_args "summary=false emits no flag" \
     "/app/src/cli.mjs diagram.puml" \
     INPUT_INPUT=diagram.puml INPUT_SUMMARY=false
 
-assert_args "all flags set" \
-    "/app/src/cli.mjs diagram.puml --output out.drawio --output-ext .xml --layout-direction TB --nodesep 50 --edgesep 10 --ranksep 50 --marginx 20 --marginy 20 --fail-fast --quiet --summary" \
+assert_args "all flags set (hyphenated env for hyphenated ids)" \
+    "/app/src/cli.mjs diagram.puml --output out.drawio --output-ext .xml --layout-direction TB --nodesep 50 --edgesep 10 --ranksep 50 --marginx 20 --marginy 20 --fail-fast --exclude seq-*.puml --skip-unsupported --quiet --summary" \
     INPUT_INPUT=diagram.puml \
     INPUT_OUTPUT=out.drawio \
-    INPUT_OUTPUT_EXT=.xml \
-    INPUT_LAYOUT_DIRECTION=TB \
+    'INPUT_OUTPUT-EXT=.xml' \
+    'INPUT_LAYOUT-DIRECTION=TB' \
     INPUT_NODESEP=50 \
     INPUT_EDGESEP=10 \
     INPUT_RANKSEP=50 \
     INPUT_MARGINX=20 \
     INPUT_MARGINY=20 \
-    INPUT_FAIL_FAST=true \
+    'INPUT_FAIL-FAST=true' \
+    'INPUT_EXCLUDE=seq-*.puml' \
+    'INPUT_SKIP-UNSUPPORTED=true' \
     INPUT_QUIET=true \
     INPUT_SUMMARY=true
 
