@@ -506,18 +506,42 @@ describeIfReady('runCli integration — full pipeline through catalyst', () => {
 })
 
 const C4_OK = '@startuml ok\n!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/v2.10.0/C4_Container.puml\nSystem(a, "A")\nSystem(b, "B")\nRel(a, b, "uses")\n@enduml\n'
+// catalyst v1.7.0+ CONVERTS C4_Sequence (ADR 0007 v1). A v1 sequence
+// converts; a sequence with a still-deferred construct (`box` grouping)
+// throws a genuine SeqParseError (fail-loud, NOT skip-unsupported — its
+// message does not match runner.mjs UNSUPPORTED_RE). C4_NOCONV has zero
+// convertible C4 elements → the genuine "unsupported type" sentinel that
+// --skip-unsupported keys off.
 const C4_SEQ = '@startuml seq\n!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/v2.10.0/C4_Sequence.puml\nactor "Op" as op\nparticipant "X" as x\nop -> x : go\n@enduml\n'
+const C4_SEQ_DEFERRED = '@startuml seqd\n!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/v2.10.0/C4_Sequence.puml\nactor "Op" as op\nparticipant "X" as x\nbox "Team"\nop -> x : go\nend box\n@enduml\n'
+const C4_NOCONV = '@startuml none\ntitle nothing convertible here\n@enduml\n'
 
-describeIfReady('runCli — --exclude and --skip-unsupported (catalyst v1.4.1 fail-loud)', () => {
-  test('default: a C4_Sequence file in a batch dir fails the whole batch (fail-loud preserved)', async () => {
-    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'p2d-faildef-'))
+describeIfReady('runCli — --exclude and --skip-unsupported (catalyst v1.7.0 — C4_Sequence supported)', () => {
+  test('default: a v1 C4_Sequence file converts in a batch (exit 0; .drawio produced)', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'p2d-seqok-'))
     try {
       await fsp.writeFile(path.join(dir, 'ok.puml'), C4_OK)
       await fsp.writeFile(path.join(dir, 'sequence-x.puml'), C4_SEQ)
+      const out = path.join(dir, 'out')
+      const { code, stderr } = await run([dir, '-o', out])
+      expect(code, stderr).toBe(0)
+      expect(fs.existsSync(path.join(out, 'ok.drawio'))).toBe(true)
+      expect(fs.existsSync(path.join(out, 'sequence-x.drawio'))).toBe(true)
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('default: a C4_Sequence with a DEFERRED construct fails the whole batch loud (no silent drop)', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'p2d-faildef-'))
+    try {
+      await fsp.writeFile(path.join(dir, 'ok.puml'), C4_OK)
+      await fsp.writeFile(path.join(dir, 'sequence-x.puml'), C4_SEQ_DEFERRED)
       const { code, stderr } = await run([dir, '-o', path.join(dir, 'out')])
       expect(code).toBe(1)
       expect(stderr).toMatch(/file\(s\) failed to convert/)
-      expect(stderr).toMatch(/unsupported C4-PlantUML diagram type/)
+      // catalyst v1.7.0 SeqParseError names the deferred token + line
+      expect(stderr).toMatch(/box|deferred|not supported/i)
     } finally {
       await fsp.rm(dir, { recursive: true, force: true })
     }
@@ -541,15 +565,15 @@ describeIfReady('runCli — --exclude and --skip-unsupported (catalyst v1.4.1 fa
     }
   })
 
-  test('--skip-unsupported loudly skips the C4_Sequence file; batch still exits 0', async () => {
+  test('--skip-unsupported loudly skips a zero-convertible file; batch still exits 0', async () => {
     const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'p2d-skip-'))
     try {
       await fsp.writeFile(path.join(dir, 'ok.puml'), C4_OK)
-      await fsp.writeFile(path.join(dir, 'sequence-x.puml'), C4_SEQ)
+      await fsp.writeFile(path.join(dir, 'none-x.puml'), C4_NOCONV)
       const out = path.join(dir, 'out')
       const { code, stdout, stderr } = await run([dir, '-o', out, '--skip-unsupported', '--summary'])
       expect(code).toBe(0)
-      expect(stderr).toMatch(/skipped:\s+.*sequence-x\.puml/)
+      expect(stderr).toMatch(/skipped:\s+.*none-x\.puml/)
       const s = JSON.parse(stdout.trim().split('\n').pop())
       expect(s.total).toBe(2)
       expect(s.converted).toBe(1)
