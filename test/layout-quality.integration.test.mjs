@@ -16,16 +16,18 @@ import { layoutDrawio } from '../src/layout-drawio.mjs'
 // coordinate-blind BY DESIGN (it asserts shapes/edges survive, never
 // positions), so it provably cannot catch the class of bug where the
 // re-layout under-sizes or overlaps leaf shapes. This closes that gap:
-//   1. every leaf shape is >= the conventional C4 element-box minimum for
-//      its type, AND
+//   1. the re-layout never shrinks a leaf below the size catalyst
+//      emitted for it (catalyst v1.7.0 / ADR 0010 / ADR 0011 replaced
+//      the old fixed per-type `C4_MIN` floor with content-fit measured
+//      sizing — `PUML_LEAF_BOX`; the invariant is now "never smaller
+//      than catalyst's content-fit box", not "≥ a fixed minimum"), AND
 //   2. no two leaf shapes overlap (absolute coords — parent offsets
 //      accumulated, since the wrapper keeps drawio parent-relative
 //      geometry for nested children).
 //
-// C4_MIN is NOT invented: it is copied verbatim from catalyst's documented
-// convention — vendor/catalyst/src/layout/measureNode.mts and
-// vendor/catalyst/tests/layout-quality.test.mts — the per-type C4 element
-// dimensions used by C4-PlantUML / Structurizr.
+// Comparing the re-laid size against catalyst's OWN emitted size (rather
+// than a hardcoded table) tracks catalyst's current content-fit contract
+// version-independently — there is no fixed minimum to copy any more.
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url))
 const CATALYST_DIST = path.resolve(__dirname, '..', 'vendor', 'catalyst', 'dist', 'catalyst.mjs')
@@ -34,15 +36,6 @@ const FIXTURES = ['c4-context.puml', 'c4-container.puml', 'example.puml']
 
 const vendorReady = fs.existsSync(CATALYST_DIST)
 const describeIfReady = vendorReady ? describe : describe.skip
-
-// Source: vendor/catalyst/src/layout/measureNode.mts (the documented C4
-// element-box floor used by C4-PlantUML / Structurizr). Keep in sync if
-// catalyst's convention ever changes.
-const c4Min = (type) =>
-  type.startsWith('System') || type.startsWith('Person') ? [220, 140]
-    : type.startsWith('Container') ? [200, 120]
-      : type.startsWith('Component') ? [180, 100]
-        : [160, 90]
 
 function asArray(v) {
   return Array.isArray(v) ? v : v ? [v] : []
@@ -96,17 +89,21 @@ const overlaps = (a, b) =>
   a.x < b.x + b.width && a.x + a.width > b.x &&
   a.y < b.y + b.height && a.y + a.height > b.y
 
-describeIfReady('layout quality — wrapper re-layout output (no overlap / >= C4 min)', () => {
+describeIfReady('layout quality — wrapper re-layout output (no overlap / no shrink vs catalyst)', () => {
   const laidByFixture = new Map()
+  const catalystByFixture = new Map()
 
   beforeAll(async () => {
     const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'layout-quality-'))
     try {
       for (const name of FIXTURES) {
         const target = path.join(tmp, name.replace('.puml', '.drawio'))
-        // Seed from REAL catalyst output, then run the wrapper's re-layout.
+        // Seed from REAL catalyst output, capture its emitted sizes, then
+        // run the wrapper's re-layout and compare against THEM.
         await convertFile(path.join(SAMPLE_DIR, name), target, {})
-        const { xml } = await layoutDrawio(await fsp.readFile(target, 'utf-8'))
+        const catalystXml = await fsp.readFile(target, 'utf-8')
+        catalystByFixture.set(name, catalystXml)
+        const { xml } = await layoutDrawio(catalystXml)
         laidByFixture.set(name, xml)
       }
     } finally {
@@ -114,16 +111,24 @@ describeIfReady('layout quality — wrapper re-layout output (no overlap / >= C4
     }
   })
 
-  test.each(FIXTURES)('%s: every leaf shape is >= its C4 element minimum', (name) => {
-    const leaves = shapesOf(laidByFixture.get(name)).filter((s) => s.isLeaf)
-    expect(leaves.length, `${name}: no leaf shapes parsed`).toBeGreaterThan(0)
-    const undersized = leaves
+  // catalyst guarantees every leaf is ≥ its content-fit box (ADR 0010);
+  // the wrapper's re-layout must not undo that. 1px slack absorbs integer
+  // rounding in the elkjs re-layout.
+  test.each(FIXTURES)('%s: re-layout never shrinks a leaf below catalyst\'s emitted size', (name) => {
+    const before = new Map(
+      shapesOf(catalystByFixture.get(name)).filter((s) => s.isLeaf).map((s) => [s.id, s]))
+    const after = shapesOf(laidByFixture.get(name)).filter((s) => s.isLeaf)
+    expect(after.length, `${name}: no leaf shapes parsed`).toBeGreaterThan(0)
+    const shrunk = after
       .filter((s) => {
-        const [mw, mh] = c4Min(s.type)
-        return s.width < mw || s.height < mh
+        const b = before.get(s.id)
+        return b && (s.width < b.width - 1 || s.height < b.height - 1)
       })
-      .map((s) => `${s.id}(${s.type}) ${s.width}x${s.height}`)
-    expect(undersized, `${name}: leaves smaller than the C4 minimum (would cram on render)`).toEqual([])
+      .map((s) => {
+        const b = before.get(s.id)
+        return `${s.id}(${s.type}) ${s.width}x${s.height} < catalyst ${b.width}x${b.height}`
+      })
+    expect(shrunk, `${name}: re-layout shrank leaves below catalyst's content-fit size (would cram on render)`).toEqual([])
   })
 
   test.each(FIXTURES)('%s: no two leaf shapes overlap', (name) => {

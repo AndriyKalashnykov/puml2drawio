@@ -55,7 +55,7 @@ export function buildParser(argv) {
       type: 'boolean',
       default: false,
       describe:
-        'Loudly SKIP (warn + count in --summary as "skipped") files catalyst rejects as an unsupported diagram TYPE (C4_Sequence / zero convertible C4 elements) instead of failing the batch. Genuine conversion errors still fail loud. Single-file/stdin still fails loud.'
+        'Loudly SKIP (warn + count in --summary as "skipped") files catalyst rejects as an unsupported diagram TYPE (an unknown C4-PlantUML diagram type / zero convertible C4 elements) instead of failing the batch. Genuine conversion errors still fail loud (incl. a deferred sequence construct — catalyst v1.7.0+ converts C4_Sequence; only its still-deferred constructs error). Single-file/stdin still fails loud.'
     })
     .option('summary', {
       type: 'boolean',
@@ -121,10 +121,14 @@ async function emitSummary(stream, files) {
   )
 }
 
-// catalyst (>= v1.4.1) throws a STABLE sentinel for input it refuses by
-// TYPE (C4_Sequence/dynamic) or because nothing converts — distinct from a
-// genuine conversion error. `--skip-unsupported` keys off these messages
-// only; every other failure still fails loud.
+// catalyst throws a STABLE sentinel for input it refuses by TYPE (an
+// unknown/unimplemented C4-PlantUML diagram type) or because nothing
+// converts — distinct from a genuine conversion error. NOTE: as of
+// catalyst v1.7.0 C4_Sequence IS supported (ADR 0007); a sequence with a
+// still-deferred construct throws a `SeqParseError` that does NOT match
+// this sentinel, so it correctly fails loud (a genuine error, never
+// silently skipped). `--skip-unsupported` keys off these messages only;
+// every other failure still fails loud.
 const UNSUPPORTED_RE =
   /unsupported C4-PlantUML diagram type|no convertible C4 elements found/i
 function isUnsupportedTypeError(err) {
