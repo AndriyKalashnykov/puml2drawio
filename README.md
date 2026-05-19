@@ -3,15 +3,15 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-brightgreen.svg)](https://opensource.org/licenses/MIT)
 [![Renovate enabled](https://img.shields.io/badge/renovate-enabled-brightgreen.svg)](https://app.renovatebot.com/dashboard#github/andriykalashnykov/puml2drawio)
 
-# puml2drawio — editable draw.io diagrams from PlantUML C4 & sequence, automated in CI
+# puml2drawio — editable draw.io diagrams from PlantUML C4 & sequence diagrams, automated in CI
 
-Converts PlantUML C4 and sequence diagrams (`.puml`) to editable draw.io XML (`.drawio`), built to drop into CI pipelines that commit PlantUML sources and want draw.io output committed back. The **user surface** takes a file, directory (recursed), glob pattern, or stdin, wraps the [catalyst](https://github.com/AndriyKalashnykov/catalyst) library (vendored at a pinned `CATALYST_REF` tag, Renovate-tracked via `github-tags`) with an [elkjs](https://github.com/kieler/elkjs) re-layout pass, and ships as both a `docker run` CLI and a reusable GitHub Action; the **maintainer surface** covers a multi-arch GHCR image (Trivy-scanned, cosign keyless-signed), a three-layer Vitest + Docker e2e test pyramid, and an `mise`-pinned toolchain with Renovate-managed dependencies.
+Converts PlantUML C4 and sequence diagrams (`.puml`) to editable draw.io XML (`.drawio`), built to drop into CI pipelines that commit PlantUML sources and want draw.io output committed back. The **user surface** takes a file, directory (recursed), glob pattern, or stdin, wraps the [catalyst](https://github.com/AndriyKalashnykov/catalyst) library (vendored at a pinned `CATALYST_REF` tag, Renovate-tracked via `github-tags`) — which lays diagrams out via PlantUML's own Graphviz `dot` engine — and ships as both a `docker run` CLI and a reusable GitHub Action (plus a standalone, opt-in [elkjs](https://github.com/kieler/elkjs) re-layout command for re-flowing existing `.drawio` files, not part of the default conversion); the **maintainer surface** covers a multi-arch GHCR image (Trivy-scanned, cosign keyless-signed), a three-layer Vitest + Docker e2e test pyramid, and an `mise`-pinned toolchain with Renovate-managed dependencies.
 
 ```mermaid
 flowchart LR
   puml[".puml files<br/>(PlantUML C4 & sequence)"] -->|stdin / file / dir| cli["puml2drawio CLI<br/>(yargs)"]
   cli --> conv["Catalyst<br/>(vendored)"]
-  conv -->|ELK layout| drawio[".drawio XML"]
+  conv -->|Graphviz dot layout| drawio[".drawio XML"]
   drawio -->|stdout / file / dir| out[("CI artefact /<br/>commit-back")]
 
   subgraph "Docker image: ghcr.io/andriykalashnykov/puml2drawio"
@@ -112,7 +112,7 @@ Useful flags in folder mode:
 | `--output-ext .xml` | Output extension (default `.drawio`). Batch/glob mode, and single-file mode when `-o` is a directory. Not applied to stdin (no source filename for a stem) |
 | `--fail-fast` | Stop at the first failing file (default: attempt all, exit 1 at the end listing failures) |
 | `--exclude '<glob>[,<glob>…]'` | Comma/space-separated glob(s) of input files to skip in directory/glob mode (matched against the collected path **and** its basename). Single-file/stdin is never excluded |
-| `--skip-unsupported` | Loudly SKIP (warn + count in `--summary` as `skipped`) files catalyst rejects as an unsupported diagram **type** (`C4_Sequence` / zero convertible C4 elements) instead of failing the batch. Genuine conversion errors still fail loud; single-file/stdin still fails loud |
+| `--skip-unsupported` | Loudly SKIP (warn + count in `--summary` as `skipped`) files catalyst rejects as an unsupported diagram **type** (an unknown C4-PlantUML diagram type / zero convertible C4 elements — catalyst converts `C4_Sequence` since ADR 0007, so only a still-deferred sequence construct errors) instead of failing the batch. Genuine conversion errors still fail loud; single-file/stdin still fails loud |
 | `--summary` | Emit a JSON `{total,converted,skipped,failed,files[]}` report — to stdout in batch/glob, to stderr in single/stdin (drawio stays uncorrupted on stdout). Written even on partial failure, before the non-zero exit |
 | `-q`, `--quiet` | Suppress per-file progress lines on stderr |
 | `--theme dark` | Recolor output to the official [C4-PlantUML `C4_superhero`](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/themes/puml-theme-C4_superhero.puml) dark theme (default `light` = catalyst's C4_blue, unchanged). Env: `CATALYST_THEME` |
@@ -204,7 +204,7 @@ Behind the scenes, the Action runs the published GHCR image (`docker://ghcr.io/a
 | `theme` | no | `light` | `light` (catalyst C4_blue) \| `dark` (official C4-PlantUML C4_superhero) |
 | `fail-fast` | no | `'false'` | Stop at the first batch conversion error |
 | `exclude` | no | — | Comma/space-separated glob(s) of input files to skip in directory/glob mode (matched against the collected path **and** its basename) |
-| `skip-unsupported` | no | `'false'` | Loudly skip files catalyst rejects as an unsupported diagram **type** (`C4_Sequence` / zero convertible C4 elements) instead of failing the batch. Genuine conversion errors still fail |
+| `skip-unsupported` | no | `'false'` | Loudly skip files catalyst rejects as an unsupported diagram **type** (an unknown C4-PlantUML diagram type / zero convertible C4 elements — catalyst converts `C4_Sequence` since ADR 0007, so only a still-deferred sequence construct errors) instead of failing the batch. Genuine conversion errors still fail |
 | `quiet` | no | `'false'` | Suppress per-file progress output |
 | `summary` | no | `'false'` | Emit a JSON conversion summary (batch/glob → stdout; single/stdin → stderr) |
 
