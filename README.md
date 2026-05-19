@@ -27,8 +27,8 @@ Data-flow view of a conversion: PlantUML source enters via stdin, a file path, a
 | Language | Node.js 24 (ES modules) | catalyst is JS — same runtime keeps the wrapper a thin shim, no FFI |
 | CLI parser | yargs | layered flags + env-var precedence + auto help/version |
 | Conversion engine | [catalyst](https://github.com/AndriyKalashnykov/catalyst) (vendored at a pinned release tag) | only mature OSS PlantUML-C4 → drawio renderer; pinning by tag isolates the wrapper from upstream breakage |
-| Layout engine | [elkjs](https://github.com/kieler/elkjs) (post-processor) | re-runs ELK's `layered` algorithm with C4-tuned spacing + nested-boundary hierarchy for dense container diagrams |
-| XML parsing | [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser) | parses & re-emits drawio XML in the elkjs re-layout post-processor (`src/layout-drawio.mjs`) |
+| Optional re-layout | [elkjs](https://github.com/kieler/elkjs) (post-processor, skippable) | catalyst's vendored Graphviz `dot` is the **primary** layout (PlantUML's own engine — minimises edge crossings). This stage optionally **replaces** dot's coordinates by re-running ELK's `layered` algorithm with C4-tuned spacing + nested-boundary hierarchy for dense container diagrams, trading dot's crossing-minimisation for density. Default-on in the example/render pipeline; skip with `SKIP_DRAWIO_LAYOUT=1` |
+| XML parsing | [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser) | parses & re-emits drawio XML in the optional elkjs re-layout post-processor (`src/layout-drawio.mjs`) |
 | Container base | `node:24-alpine` (non-root `app` user, npm/npx/corepack/yarn stripped) | minimal attack surface; stripped tools eliminate HIGH CVEs in their bundled `minimatch`/`tar` |
 | Registry | GitHub Container Registry (GHCR), multi-arch `linux/amd64` + `linux/arm64` (published on `v*` tag pushes only) | free for OSS, native OIDC for cosign |
 | Static analysis | [hadolint](https://github.com/hadolint/hadolint) (Dockerfile) + [shellcheck](https://www.shellcheck.net/) (scripts) | catches Dockerfile + shell anti-patterns in `make static-check` |
@@ -142,9 +142,9 @@ Produces side-by-side pairs under `build/png/`:
 | File | Source | Renderer |
 |---|---|---|
 | `<stem>.puml.png` | `sample/<stem>.puml` | `plantuml/plantuml` |
-| `<stem>.drawio.png` | `build/<stem>.drawio` (catalyst + ELK) | `rlespinasse/drawio-export` |
+| `<stem>.drawio.png` | `build/<stem>.drawio` (catalyst `dot` + optional ELK re-layout) | `rlespinasse/drawio-export` |
 
-The target pipes every `sample/*.puml` through four stages: plantuml-rendered PNG (the reference) → catalyst conversion to `.drawio` → ELK re-layout (auto-direction, see [Diagram Rendering & Layout](#diagram-rendering--layout)) → drawio-export to PNG. Skip the re-layout stage with `SKIP_DRAWIO_LAYOUT=1 make diagrams-png` if you want catalyst's raw (un-re-laid-out) output.
+The target pipes every `sample/*.puml` through four stages: plantuml-rendered PNG (the reference) → catalyst conversion to `.drawio` (Graphviz `dot` layout — PlantUML's own engine, minimises edge crossings) → ELK re-layout (auto-direction; **replaces** dot's coordinates — re-flows for density, does not preserve dot's crossing-minimisation; see [Diagram Rendering & Layout](#diagram-rendering--layout)) → drawio-export to PNG. Skip the re-layout stage with `SKIP_DRAWIO_LAYOUT=1 make diagrams-png` to keep catalyst's raw `dot` output.
 
 ### Step-by-step equivalent
 
@@ -315,7 +315,7 @@ Run `make help` to see every target.
 | `make diagrams-png` | Side-by-side: render every `sample/*.puml` twice (source via plantuml, catalyst-output via drawio-export) for visual diff |
 | `make convert-png` | Convert PUML → drawio **and** render PNG side-by-side in the **same** folder (`INPUT=<dir>` `OUTPUT_DIR=<dir>`; defaults `sample` → `build`, producing `<stem>.drawio` + `<stem>.drawio.png`) |
 | `make examples-png` | Regenerate the committed README before/after example PNGs in `docs/examples/` (run after a `CATALYST_REF` bump) |
-| `make drawio-layout INPUT=<file> [OUTPUT=<file>] [DIRECTION=…]` | Re-layout a drawio file via [elkjs](https://github.com/kieler/elkjs). Handles dense diagrams better than catalyst's built-in layout — use when the auto-layout is cramped. Default output: overwrite in-place. `DIRECTION=` is `AUTO` / `DOWN` / `UP` / `LEFT` / `RIGHT`; `AUTO` (default) picks per diagram — see below |
+| `make drawio-layout INPUT=<file> [OUTPUT=<file>] [DIRECTION=…]` | Re-layout a drawio file via [elkjs](https://github.com/kieler/elkjs), **replacing** catalyst's Graphviz `dot` coordinates. Can pack dense diagrams more tightly than `dot`, at the cost of dot's edge-crossing minimisation — use when the `dot` auto-layout is cramped. Default output: overwrite in-place. `DIRECTION=` is `AUTO` / `DOWN` / `UP` / `LEFT` / `RIGHT`; `AUTO` (default) picks per diagram — see below |
 
 **`make drawio-layout` — direction selection**
 
