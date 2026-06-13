@@ -315,6 +315,7 @@ Run `make help` to see every target.
 | `make diagrams-png` | Side-by-side: render every `sample/*.puml` twice (source via plantuml, catalyst-output via drawio-export) for visual diff |
 | `make convert-png` | Convert PUML → drawio **and** render PNG side-by-side in the **same** folder (`INPUT=<dir>` `OUTPUT_DIR=<dir>`; defaults `sample` → `build`, producing `<stem>.drawio` + `<stem>.drawio.png`) |
 | `make examples-png` | Regenerate the committed README before/after example PNGs in `docs/examples/` (run after a `CATALYST_REF` bump) |
+| `make examples-check` | Drift gate (in `static-check`): fail if the committed `docs/examples/` output drifted from the converter — run `make examples-png` to refresh |
 | `make drawio-layout INPUT=<file> [OUTPUT=<file>] [DIRECTION=…]` | Re-layout a drawio file via [elkjs](https://github.com/kieler/elkjs), **replacing** catalyst's Graphviz `dot` coordinates. Can pack dense diagrams more tightly than `dot`, at the cost of dot's edge-crossing minimisation — use when the `dot` auto-layout is cramped. Default output: overwrite in-place. `DIRECTION=` is `AUTO` / `DOWN` / `UP` / `LEFT` / `RIGHT`; `AUTO` (default) picks per diagram — see below |
 
 **`make drawio-layout` — direction selection**
@@ -395,12 +396,12 @@ One SHA-pinned workflow — `.github/workflows/ci.yml` — covers everything. Tr
 | `test` | `changes`, `static-check` | Vitest with v8 coverage (80% thresholds), artifact upload |
 | `integration-test` | `changes`, `static-check` | `make integration-test` + `make action-test` — vitest against real catalyst + fs, plus shell test of the Action entrypoint shim |
 | `e2e` | `changes`, `build`, `test` | `make e2e` (stdin: assert `<mxfile`/`<mxGraphModel`/`<mxCell` + 3 C4 labels) **and** `make e2e-batch` (bind-mount batch: host-owned, fresh `.drawio` with `<mxGraphModel`) |
-| `docker` | `changes`, `static-check`, `build`, `test` | Single-arch scan build → Trivy image scan (CRITICAL/HIGH blocking) → `--version` smoke test → multi-arch `linux/amd64,linux/arm64` build (push on tags only) → cosign keyless OIDC signing (tags only) → multi-arch manifest verification |
+| `docker` | `changes`, `static-check`, `build`, `test` | Single-arch scan build → Trivy image scan (CRITICAL/HIGH blocking) → `--version` smoke test → multi-arch `linux/amd64,linux/arm64` build (push on tags only) → cosign keyless OIDC signing (tags only) → SPDX SBOM generation (`anchore/sbom-action`) + cosign keyless SBOM attestation (tags only) → multi-arch manifest verification |
 | `ci-pass` | all above | Aggregates `needs.*.result`; fails on `failure` or `cancelled`; treats `skipped` as OK so doc-only changes report green. Single repository-ruleset gate. |
 
 A separate scheduled workflow (`.github/workflows/action-consumer-test.yml`) runs nightly: it invokes the action via `uses: ./` against a synthetic PlantUML input and asserts the converted output. Not part of `ci-pass`.
 
-Buildkit in-manifest attestations (`provenance: false`, `sbom: false`) stay disabled so the GHCR "OS / Arch" tab renders. Cosign provides the supply-chain signature instead of in-manifest attestations.
+Buildkit in-manifest attestations (`provenance: false`, `sbom: false`) stay disabled so the GHCR "OS / Arch" tab renders. Cosign provides the supply-chain signature **and** a separate-OCI-ref SPDX SBOM attestation (`cosign verify-attestation` / `cosign download attestation`) instead of in-manifest attestations.
 
 Git tags use `vX.Y.Z`; `docker/metadata-action` strips the `v` to produce bare-semver image tags (`X.Y.Z`, `X.Y`, `X`). `:latest` only applies on tag pushes via `flavor: latest=${{ startsWith(github.ref, 'refs/tags/') }}`.
 
