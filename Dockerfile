@@ -40,6 +40,14 @@ LABEL org.opencontainers.image.title="puml2drawio"
 LABEL org.opencontainers.image.description="Convert PlantUML C4 diagrams to draw.io XML"
 LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.source="https://github.com/andriykalashnykov/puml2drawio"
+# Upgrade the base image's system packages before shipping. node:24-alpine
+# lags Alpine security updates between rebuilds, so its OpenSSL libs
+# (libcrypto3/libssl3) carry fixable CVEs (e.g. CVE-2026-45447, fixed in
+# openssl 3.5.7-r0) that even a freshly-published base digest still ships.
+# This is the Alpine analogue of `apt-get upgrade` — it clears base-lag CVEs
+# the blocking Trivy gate flags, including future ones, on every rebuild.
+# `--no-cache` leaves no apk index behind so the runtime layer stays minimal.
+RUN apk upgrade --no-cache
 # Strip npm/npx/corepack from the runtime image. We never use them at runtime
 # (ENTRYPOINT is `node src/cli.mjs`), and npm's bundled node_modules ships
 # HIGH CVEs in minimatch/picomatch/tar that Trivy (rightly) flags.
