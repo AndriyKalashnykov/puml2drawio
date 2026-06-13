@@ -16,7 +16,7 @@
   "engines": {
     "node": ">=24 <25"
   },
-  "packageManager": "pnpm@11.5.2",
+  "packageManager": "pnpm@11.5.3",
   "files": [
     "src",
     "scripts",
