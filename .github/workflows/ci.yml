@@ -134,6 +134,15 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: '**/pnpm-lock.yaml'
 
+      # `make build` → `make deps` → `mise install`. mise-action authenticates
+      # the tool downloads (aqua backend); without it `mise install` hits
+      # GitHub's 60-req/hr anonymous limit and intermittently 403s.
+      - name: Set up mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+        with:
+          install: true
+          cache: true
+
       - name: Build
         run: make build
 
@@ -153,6 +162,14 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'pnpm'
           cache-dependency-path: '**/pnpm-lock.yaml'
+
+      # `make deps` → `mise install`; mise-action authenticates the aqua-backend
+      # tool downloads so a cold cache doesn't 403 on the anonymous API limit.
+      - name: Set up mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+        with:
+          install: true
+          cache: true
 
       - name: Install dependencies
         run: make deps
@@ -185,6 +202,14 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'pnpm'
           cache-dependency-path: '**/pnpm-lock.yaml'
+
+      # `make deps` → `mise install`; mise-action authenticates the aqua-backend
+      # tool downloads so a cold cache doesn't 403 on the anonymous API limit.
+      - name: Set up mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+        with:
+          install: true
+          cache: true
 
       - name: Install dependencies
         run: make deps
@@ -284,6 +309,7 @@ jobs:
           build-args: |
             CATALYST_REPO=${{ steps.catalyst_repo.outputs.repo }}
             CATALYST_REF=${{ steps.catalyst.outputs.ref }}
+            APK_UPGRADE_BUST=${{ github.run_id }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -323,6 +349,7 @@ jobs:
           build-args: |
             CATALYST_REPO=${{ steps.catalyst_repo.outputs.repo }}
             CATALYST_REF=${{ steps.catalyst.outputs.ref }}
+            APK_UPGRADE_BUST=${{ github.run_id }}
           provenance: false
           sbom: false
           cache-from: type=gha

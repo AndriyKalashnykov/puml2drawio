@@ -3,8 +3,11 @@ name: Cleanup old workflow runs
 # Weekly housekeeping via the native gh CLI (pre-installed on every GitHub
 # runner, maintained by GitHub). No third-party actions — avoids supply-chain
 # risk from low-bus-factor maintainers. Deletes workflow runs older than 7
-# days while keeping at least 5 recent runs, and prunes caches from branches
-# that no longer exist.
+# days while keeping at least 5 recent runs PER WORKFLOW (a global slice would
+# silently purge low-frequency workflows entirely once weekly cleanup runs
+# dominate the recent list, deregistering them), and never deleting runs for
+# any open PR's head commit (deleting an open PR's run strands it on a missing
+# required check). Also prunes caches from branches that no longer exist.
 
 on:
   schedule:
@@ -21,8 +24,10 @@ permissions:
   # contents: read — cleanup-caches calls `gh api repos/<repo>/branches/<b>`;
   # without it the branch-existence probe silently fails on private repos
   # (no-op on public, but the canonical template requires both).
+  # pull-requests: read — list open PRs so their head-commit runs are spared.
   actions: write
   contents: read
+  pull-requests: read
 
 jobs:
   cleanup-runs:
@@ -36,10 +41,20 @@ jobs:
       - name: Delete old workflow runs
         run: |
           CUTOFF=$(date -u -d "${RETAIN_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ)
+          # Head SHAs of all open PRs — their runs are never deleted, otherwise
+          # an idle open PR loses its required-check run and can't merge.
+          OPEN_SHAS=$(gh pr list --repo "${{ github.repository }}" \
+            --state open --json headRefOid --jq '[.[].headRefOid]')
           gh run list --repo "${{ github.repository }}" \
-            --json databaseId,createdAt --limit 200 \
-          | jq -r --arg cutoff "$CUTOFF" --argjson keep "$KEEP_MINIMUM" \
-            'sort_by(.createdAt) | reverse | .[$keep:] | .[] | select(.createdAt < $cutoff) | .databaseId' \
+            --json databaseId,createdAt,headSha,workflowName --limit 200 \
+          | jq -r --arg cutoff "$CUTOFF" --argjson keep "$KEEP_MINIMUM" --argjson open "$OPEN_SHAS" \
+            'group_by(.workflowName)
+             | map(sort_by(.createdAt) | reverse | .[$keep:])
+             | add // []
+             | .[]
+             | select(.createdAt < $cutoff)
+             | select(.headSha as $h | ($open | index($h)) | not)
+             | .databaseId' \
           | xargs -r -I{} gh run delete {} --repo "${{ github.repository }}"
 
   cleanup-caches:

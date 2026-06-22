@@ -43,6 +43,12 @@ GHCR_USER       ?= andriykalashnykov
 # See /makefile skill §5c.
 export PATH := $(HOME)/.local/share/mise/shims:$(HOME)/.local/bin:$(PATH)
 
+# Corepack provisions the pnpm version pinned in package.json's `packageManager`
+# field on first use of an uncached version (e.g. after a pnpm bump). It prompts
+# for interactive download consent by default, which stalls `make deps`. Disable
+# the prompt so the (already-pinned, deterministic) download proceeds silently.
+export COREPACK_ENABLE_DOWNLOAD_PROMPT := 0
+
 # CI-safe pnpm install (locked in CI, flexible locally)
 PNPM_INSTALL := pnpm install $(if $(CI),--frozen-lockfile,)
 
@@ -226,6 +232,7 @@ examples-check: deps
 image-build: require-docker
 	@docker buildx build --load \
 		--build-arg CATALYST_REF=$(CATALYST_REF) \
+		--build-arg APK_UPGRADE_BUST=$(shell date -u +%Y%m%d) \
 		-t $(DOCKER_IMAGE):$(DOCKER_TAG) \
 		$(if $(filter-out dev,$(DOCKER_TAG)),-t $(DOCKER_IMAGE):latest,) .
 

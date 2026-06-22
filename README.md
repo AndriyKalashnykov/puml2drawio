@@ -48,9 +48,9 @@ The Docker image and GitHub Action both accept the same four input modes — **s
 `sample/example.puml` (left, rendered by PlantUML) converts to `.drawio` (right, rendered by draw.io). The `.drawio` is fully editable in [diagrams.net](https://app.diagrams.net/) / the VS Code Draw.io extension — not a flat image.
 
 <p align="center">
-  <img src="docs/examples/example.puml.png" alt="PlantUML C4 source diagram" width="300">
+  <img src="docs/examples/example.puml.png" alt="PlantUML C4 source diagram" width="200">
   &nbsp;&nbsp;→&nbsp;&nbsp;
-  <img src="docs/examples/example.drawio.png" alt="Converted editable draw.io diagram" width="300">
+  <img src="docs/examples/example.drawio.png" alt="Converted editable draw.io diagram" width="200">
 </p>
 
 Regenerate after a `CATALYST_REF` bump with `make examples-png` (source: [`sample/example.puml`](sample/example.puml)).
