@@ -47,6 +47,17 @@ LABEL org.opencontainers.image.source="https://github.com/andriykalashnykov/puml
 # This is the Alpine analogue of `apt-get upgrade` — it clears base-lag CVEs
 # the blocking Trivy gate flags, including future ones, on every rebuild.
 # `--no-cache` leaves no apk index behind so the runtime layer stays minimal.
+#
+# APK_UPGRADE_BUST defeats the gha build cache on this layer: both CI image
+# builds use `cache-from/to: type=gha`, so without a changing input the
+# upgraded layer is replayed verbatim and an Alpine CVE fixed *after* the
+# layer was first cached would never land (the blocking Trivy image scan
+# could redden with no Dockerfile diff). CI feeds ${{ github.run_id }}
+# (per-run freshness); the Makefile feeds a date (daily). Under BuildKit, an
+# in-scope ARG whose value changes invalidates the cache of the following RUN
+# even without referencing it (A/B-verified), so the bare declaration here is
+# sufficient — no echo needed.
+ARG APK_UPGRADE_BUST=0
 RUN apk upgrade --no-cache
 # Strip npm/npx/corepack from the runtime image. We never use them at runtime
 # (ENTRYPOINT is `node src/cli.mjs`), and npm's bundled node_modules ships

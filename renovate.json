@@ -68,6 +68,12 @@
       "pinDigests": false
     },
     {
+      "description": "The `# syntax=docker/dockerfile:1.25@sha256:...` frontend directive is a deliberately-floating major tag (1.25 receives ongoing patch releases). Keep it digest-refreshed but never let docker:pinDigests open a separate pin PR against the floating tag.",
+      "matchManagers": ["dockerfile"],
+      "matchDepNames": ["docker/dockerfile"],
+      "pinDigests": false
+    },
+    {
       "description": "Group GitHub Actions into one PR",
       "matchManagers": ["github-actions"],
       "groupName": "GitHub Actions"

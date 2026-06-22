@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Dockerized CLI that converts PlantUML C4 diagrams to draw.io XML by wrapping the [catalyst](https://github.com/AndriyKalashnykov/catalyst) JavaScript library. The primary artifact is a multi-arch container image published to `ghcr.io/andriykalashnykov/puml2drawio` and a reusable GitHub Action (`action.yml`). Used as a CI step in other repos that author architecture diagrams in PlantUML and want draw.io output committed back or rendered downstream.
+Dockerized CLI that converts PlantUML C4 diagrams (context/container/component **and C4 sequence** diagrams — catalyst v1.7.0+ converts `C4_Sequence`; a sequence using a still-deferred construct like `box` grouping fails loud) to draw.io XML by wrapping the [catalyst](https://github.com/AndriyKalashnykov/catalyst) JavaScript library. The primary artifact is a multi-arch container image published to `ghcr.io/andriykalashnykov/puml2drawio` and a reusable GitHub Action (`action.yml`). Used as a CI step in other repos that author architecture diagrams in PlantUML and want draw.io output committed back or rendered downstream.
 
 ## Architecture
 
@@ -119,7 +119,7 @@ Git tags use `vX.Y.Z`; the Docker metadata-action strips the `v` to produce bare
 ## Conventions
 
 - **TUnit/xUnit/Maven are irrelevant here** — this is Node; tests are Vitest. Portfolio-wide .NET/Java testing rules do not apply.
-- **pnpm-only.** `package.json` sets `packageManager: pnpm@11.1.0`. Never run `npm install` at the wrapper root — it will write `package-lock.json` and cause drift. (Inside `vendor/catalyst/`, npm is used because catalyst itself uses `package-lock.json` upstream.)
+- **pnpm-only.** `package.json` sets `packageManager: pnpm@11.8.0`. Never run `npm install` at the wrapper root — it will write `package-lock.json` and cause drift. (Inside `vendor/catalyst/`, npm is used because catalyst itself uses `package-lock.json` upstream.)
 - **Immutability.** `src/options.mjs` returns `Object.freeze(...)`; `convertString` spreads options into a fresh object before passing to catalyst. Preserve this when extending.
 - **Error boundaries.** CLI writes errors to stderr and exits 1 (runtime) or 2 (arg/validation). Batch mode accumulates errors unless `--fail-fast`. `--exclude '<glob>[,…]'` drops matching inputs before conversion (dir/glob mode; matches path + basename). `--skip-unsupported` loudly skips (warn + `skipped` in `--summary`) files catalyst rejects by diagram **type** (catalyst >= v1.4.1 throws a stable sentinel: `unsupported C4-PlantUML diagram type` / `no convertible C4 elements found`) — every other error still fails loud; single-file/stdin always fails loud.
 - **Dynamic catalyst import.** Keep it dynamic — pure-logic tests must run without `vendor/catalyst/` existing.
@@ -144,13 +144,8 @@ Deferred work. Keep this list current — resolve items or justify why they're s
 
 ### Known gaps
 
-None open. (Resolved 2026-05-15: the `?/` font-cache litter — fixed in
-`scripts/puml-to-png.sh` via `JAVA_TOOL_OPTIONS=-Duser.home=/tmp`, PR #83;
-and SBOM publishing — implemented as a separate-OCI-ref SPDX cosign
-attestation in the `docker` job, option (c), `anchore/sbom-action` +
-`cosign attest --type spdxjson`, tag-gated.)
+None open.
 
 ## Roadmap (nice-to-have)
 
-Glob input, `--output-ext` in single-file/stdin, `--summary` JSON, and **dark-mode `--theme`** shipped 2026-05-15 (see §"CLI surface"); removed from the roadmap as resolved. Dark mode uses the official C4-PlantUML `C4_superhero` palette (user-approved citation), every hex empirically read from PlantUML v1.2026.3's own render — `src/theme-drawio.mjs` + `test/theme.test.mjs` (unit) + `test/theme.integration.test.mjs` (end-to-end vs real catalyst).
 - [ ] **Layout parity with Graphviz dot for dense C4 diagrams** (2026-04-18; re-scoped 2026-05-15 as a research spike, not a mechanical fix). `make drawio-layout` uses elkjs `layered` + `INCLUDE_CHILDREN`; it cannot replicate Graphviz dot's wide sibling packing for dense container diagrams (many peers without intra-cluster edges stack orthogonally to the flow axis). Explored and rejected: `elk.aspectRatio`, `elk.layered.wrapping.strategy=MULTI_EDGE`, `elk.layered.considerModelOrder.strategy=NODES_AND_EDGES`, `elk.separateConnectedComponents=false`, `box`/`rectpacking` (incompatible with cross-hierarchy edges). A real fix is one of: (a) shell out to a `dot` binary + map coordinates back into drawio XML — a major feature with a heavy new system dependency and a coordinate-remap layer (high risk; arguably belongs upstream in catalyst's `LayoutEngine`, which owns layout); (b) a two-pass layered + greedy sibling grid-packing post-step; (c) per-PUML layout hints forwarded as per-container `elk.*` options. All three are exploratory — none is a no-guesswork one-pass change. **Trigger to act**: a decision to take the (a)/(b)/(c) spike, ideally driven upstream in catalyst.
