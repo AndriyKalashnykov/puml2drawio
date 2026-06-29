@@ -18,7 +18,7 @@ CATALYST_REF  := $(shell tr -d '[:space:]' < CATALYST_REF 2>/dev/null)
 # Only tools that mise cannot manage stay pinned in the Makefile.
 # Docker image, consumed via `docker run`.
 # renovate: datasource=docker depName=minlag/mermaid-cli
-MERMAID_CLI_VERSION := 11.15.0
+MERMAID_CLI_VERSION := 11.16.0
 # Docker image, consumed via `docker run`.
 # renovate: datasource=docker depName=plantuml/plantuml
 PLANTUML_VERSION    := 1.2026.6
