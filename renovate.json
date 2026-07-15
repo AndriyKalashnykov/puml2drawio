@@ -20,9 +20,6 @@
     "enabled": true,
     "automerge": true
   },
-  "npm": {
-    "minimumReleaseAge": "3 days"
-  },
   "customManagers": [
     {
       "customType": "regex",
