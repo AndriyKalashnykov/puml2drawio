@@ -263,7 +263,14 @@ jobs:
 
   docker:
     needs: [changes, static-check, build, test]
-    if: ${{ !cancelled() && !failure() && needs.changes.outputs.code == 'true' }}
+    # Tag-only: the full build -> Trivy image scan -> smoke -> multi-arch ->
+    # publish/sign pipeline runs solely on version tags. On PRs and main
+    # pushes this job is skipped (ci-pass treats `skipped` as OK). Dockerfile
+    # breakage is still caught on PRs by the `e2e` job, which builds and runs
+    # the image. The step-level `if: startsWith(github.ref, 'refs/tags/')`
+    # guards below are now redundant with this gate but retained as
+    # defense-in-depth for the publish/sign steps.
+    if: ${{ !cancelled() && !failure() && needs.changes.outputs.code == 'true' && startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
