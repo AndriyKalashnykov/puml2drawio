@@ -24,7 +24,7 @@ MERMAID_CLI_VERSION := 11.16.0
 PLANTUML_VERSION    := 1.2026.6
 # Docker image tag (v-prefixed), consumed via `docker run`.
 # renovate: datasource=docker depName=rlespinasse/drawio-export
-DRAWIO_EXPORT_TAG   := v4.54.0
+DRAWIO_EXPORT_TAG   := v4.55.0
 # Minimal container used by diagrams-png for chown.
 # renovate: datasource=docker depName=alpine
 ALPINE_VERSION      := 3.24.1
