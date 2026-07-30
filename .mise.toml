@@ -15,7 +15,7 @@ idiomatic_version_file_enable_tools = ["node"]
 # keyword form is intentionally NOT used here: the mise manager does not
 # consult inline comments, and adding a custom.regex over .mise.toml would
 # duplicate-PR against the native manager (see /renovate skill).
-hadolint = "2.14.0"   # github: hadolint/hadolint
+hadolint = "2.15.0"   # github: hadolint/hadolint
 act = "0.2.89"        # github: nektos/act
 trivy = "0.72.0"      # github: aquasecurity/trivy
 shellcheck = "0.11.0" # github: koalaman/shellcheck
