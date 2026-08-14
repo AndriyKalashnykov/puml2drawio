@@ -17,5 +17,5 @@ idiomatic_version_file_enable_tools = ["node"]
 # duplicate-PR against the native manager (see /renovate skill).
 hadolint = "2.15.1"   # github: hadolint/hadolint
 act = "0.2.89"        # github: nektos/act
-trivy = "0.73.0"      # github: aquasecurity/trivy
+trivy = "0.74.0"      # github: aquasecurity/trivy
 shellcheck = "0.11.0" # github: koalaman/shellcheck
