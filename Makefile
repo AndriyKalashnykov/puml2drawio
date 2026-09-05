@@ -21,7 +21,7 @@ CATALYST_REF  := $(shell tr -d '[:space:]' < CATALYST_REF 2>/dev/null)
 MERMAID_CLI_VERSION := 11.17.0
 # Docker image, consumed via `docker run`.
 # renovate: datasource=docker depName=plantuml/plantuml
-PLANTUML_VERSION    := 1.2026.7
+PLANTUML_VERSION    := 1.2026.8
 # Docker image tag (v-prefixed), consumed via `docker run`.
 # renovate: datasource=docker depName=rlespinasse/drawio-export
 DRAWIO_EXPORT_TAG   := v4.59.1
