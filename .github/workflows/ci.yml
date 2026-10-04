@@ -103,7 +103,7 @@ jobs:
           cache-dependency-path: '**/pnpm-lock.yaml'
 
       - name: Set up mise
-        uses: jdx/mise-action@94c60b39bc2d90ab2f9bab27f38d3cc4812c1834 # v5.1.0
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           install: true
           cache: true
@@ -138,7 +138,7 @@ jobs:
       # the tool downloads (aqua backend); without it `mise install` hits
       # GitHub's 60-req/hr anonymous limit and intermittently 403s.
       - name: Set up mise
-        uses: jdx/mise-action@94c60b39bc2d90ab2f9bab27f38d3cc4812c1834 # v5.1.0
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           install: true
           cache: true
@@ -166,7 +166,7 @@ jobs:
       # `make deps` → `mise install`; mise-action authenticates the aqua-backend
       # tool downloads so a cold cache doesn't 403 on the anonymous API limit.
       - name: Set up mise
-        uses: jdx/mise-action@94c60b39bc2d90ab2f9bab27f38d3cc4812c1834 # v5.1.0
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           install: true
           cache: true
@@ -206,7 +206,7 @@ jobs:
       # `make deps` → `mise install`; mise-action authenticates the aqua-backend
       # tool downloads so a cold cache doesn't 403 on the anonymous API limit.
       - name: Set up mise
-        uses: jdx/mise-action@94c60b39bc2d90ab2f9bab27f38d3cc4812c1834 # v5.1.0
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           install: true
           cache: true
