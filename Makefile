@@ -27,7 +27,7 @@ PLANTUML_VERSION    := 1.2026.9
 DRAWIO_EXPORT_TAG   := v4.60.0
 # Minimal container used by diagrams-png for chown.
 # renovate: datasource=docker depName=alpine
-ALPINE_VERSION      := 3.24.2
+ALPINE_VERSION      := 3.24.3
 
 # Docker coordinates
 DOCKER_IMAGE    := $(APP_NAME)
